@@ -52,12 +52,12 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-sm">
         {/* Logo */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-9 h-9 bg-brand-600 rounded-lg flex items-center justify-center">
-            <Activity size={18} className="text-white" />
+        <div className="flex flex-col items-center justify-center text-center gap-2.5 mb-8">
+          <div className="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center shadow-lg shadow-brand-600/30">
+            <Activity size={20} className="text-white" />
           </div>
           <div>
-            <p className="text-base font-semibold text-text-primary">Follow-Up Manager</p>
+            <p className="text-lg font-bold text-text-primary tracking-tight">Follow-Up Manager</p>
             <p className="text-xs text-text-muted">Internal Operations Tool</p>
           </div>
         </div>
