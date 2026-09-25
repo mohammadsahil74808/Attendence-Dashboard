@@ -115,12 +115,31 @@ export default function ContactsPage() {
     onError: () => toast('Bulk action failed', 'error'),
   })
 
-  function handleExport() {
-    const params = new URLSearchParams()
-    if (filters.search) params.set('search', filters.search)
-    if (filters.contact_status) params.set('contact_status', filters.contact_status)
-    params.set('format', 'xlsx')
-    window.open(`${api.defaults.baseURL}/contacts/export?${params}`, '_blank')
+  async function handleExport() {
+    try {
+      const params = new URLSearchParams()
+      if (filters.search) params.set('search', filters.search)
+      if (filters.contact_status) params.set('contact_status', filters.contact_status)
+      params.set('format', 'xlsx')
+
+      const response = await api.get(`/contacts/export?${params.toString()}`, {
+        responseType: 'blob',
+      })
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `contacts_export_${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      toast('Export downloaded successfully', 'success')
+    } catch (err) {
+      toast('Failed to download export', 'error')
+    }
   }
 
   // TanStack Table setup

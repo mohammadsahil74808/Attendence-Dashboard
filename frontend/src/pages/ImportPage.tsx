@@ -49,9 +49,7 @@ export default function ImportPage() {
     mutationFn: async (file: File) => {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await api.post('/import/preview', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      const res = await api.post('/import/preview', formData)
       return res.data
     },
     onSuccess: (data: ImportPreview) => {
@@ -131,7 +129,7 @@ export default function ImportPage() {
 
   return (
     <AppLayout requireAdmin>
-      <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-4 sm:space-y-6">
         <PageHeader
           title="Import Contacts Wizard"
           subtitle="Upload and map Excel (.xlsx) or CSV files into the system with automated duplicate detection"

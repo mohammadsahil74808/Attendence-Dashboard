@@ -39,24 +39,16 @@ export default function ReportsPage() {
   async function handleExport() {
     try {
       setIsExporting(true)
-      const token = localStorage.getItem('fms_token')
       const params = new URLSearchParams()
       params.set('format', exportFormat)
       if (statusFilter) params.set('contact_status', statusFilter)
       if (assignedFilter) params.set('assigned_to_id', assignedFilter)
 
-      const response = await fetch(
-        `http://localhost:8000/api/v1/contacts/export?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      )
+      const response = await api.get(`/contacts/export?${params.toString()}`, {
+        responseType: 'blob',
+      })
 
-      if (!response.ok) throw new Error('Export request failed')
-
-      const blob = await response.blob()
+      const blob = new Blob([response.data])
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
