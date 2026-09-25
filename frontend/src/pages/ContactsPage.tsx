@@ -1,0 +1,668 @@
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import {
+  useReactTable,
+  getCoreRowModel,
+  flexRender,
+  type ColumnDef,
+  type SortingState,
+} from '@tanstack/react-table'
+import {
+  Search, X, Download, ChevronUp, ChevronDown,
+  ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight, Upload,
+  CheckSquare, Square, Trash2, Plus,
+} from 'lucide-react'
+import { AppLayout, PageHeader } from '../components/layout/AppLayout'
+import { ContactStatusBadge, RegistrationBadge, FollowUpBadge } from '../components/ui/StatusBadges'
+import { TableSkeleton } from '../components/ui/Skeleton'
+import { ConfirmDialog, Modal } from '../components/ui/Modal'
+import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
+import api from '../lib/api'
+import { timeAgo } from '../lib/utils'
+import type { ContactListItem, ContactFilters, ContactStatus, RegistrationStatus, User } from '../types'
+import { CONTACT_STATUS_LABELS, REGISTRATION_STATUS_LABELS } from '../types'
+
+const PAGE_SIZE = 50
+
+export default function ContactsPage() {
+  const { isAdmin } = useAuth()
+  const toast = useToast()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Derive filters from URL (shareable state)
+  const filters: ContactFilters = {
+    search: searchParams.get('search') || undefined,
+    contact_status: (searchParams.get('contact_status') as ContactStatus) || undefined,
+    registration_status: (searchParams.get('registration_status') as RegistrationStatus) || undefined,
+    assigned_to_id: searchParams.get('assigned_to_id') ? Number(searchParams.get('assigned_to_id')) : undefined,
+    overdue_only: searchParams.get('overdue_only') === 'true',
+    page: Number(searchParams.get('page') || '1'),
+    page_size: PAGE_SIZE,
+    sort_by: searchParams.get('sort_by') || 'created_at',
+    sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'desc',
+  }
+
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false)
+  const [bulkAction, setBulkAction] = useState<string | null>(null)
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [createStatus, setCreateStatus] = useState('not_contacted')
+
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const res = await api.get('/users/')
+      return res.data
+    },
+    enabled: isAdmin,
+  })
+
+  const createContactMutation = useMutation({
+    mutationFn: (data: any) => api.post('/contacts/', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] })
+      queryClient.invalidateQueries({ queryKey: ['followups-list'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] })
+      toast.show('Contact created successfully', 'success')
+      setCreateModalOpen(false)
+      setCreateStatus('not_contacted')
+    },
+    onError: (err: any) => {
+      toast.show(err.response?.data?.detail || 'Failed to create contact', 'error')
+    },
+  })
+
+  function setFilter(key: string, val: string | undefined) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (val) next.set(key, val)
+      else next.delete(key)
+      next.set('page', '1')  // reset pagination on filter change
+      return next
+    })
+  }
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['contacts', filters],
+    queryFn: () => {
+      const params = new URLSearchParams()
+      if (filters.search) params.set('search', filters.search)
+      if (filters.contact_status) params.set('contact_status', filters.contact_status)
+      if (filters.registration_status) params.set('registration_status', filters.registration_status)
+      if (filters.assigned_to_id) params.set('assigned_to_id', String(filters.assigned_to_id))
+      if (filters.overdue_only) params.set('overdue_only', 'true')
+      params.set('page', String(filters.page))
+      params.set('page_size', String(PAGE_SIZE))
+      params.set('sort_by', filters.sort_by || 'created_at')
+      params.set('sort_order', filters.sort_order || 'desc')
+      return api.get(`/contacts?${params}`).then((r) => r.data)
+    },
+    placeholderData: (prev) => prev,
+  })
+
+  const bulkMutation = useMutation({
+    mutationFn: (payload: { action: string; contact_ids: number[]; value?: string }) =>
+      api.post('/contacts/bulk', payload),
+    onSuccess: (_, vars) => {
+      toast(`${vars.contact_ids.length} contacts updated`, 'success')
+      setSelectedIds(new Set())
+      queryClient.invalidateQueries({ queryKey: ['contacts'] })
+    },
+    onError: () => toast('Bulk action failed', 'error'),
+  })
+
+  function handleExport() {
+    const params = new URLSearchParams()
+    if (filters.search) params.set('search', filters.search)
+    if (filters.contact_status) params.set('contact_status', filters.contact_status)
+    params.set('format', 'xlsx')
+    window.open(`${api.defaults.baseURL}/contacts/export?${params}`, '_blank')
+  }
+
+  // TanStack Table setup
+  const sorting: SortingState = [{ id: filters.sort_by!, desc: filters.sort_order === 'desc' }]
+
+  const baseColumns: ColumnDef<ContactListItem>[] = [
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      cell: ({ row }) => (
+        <div>
+          <p className="font-medium text-text-primary text-sm">{row.original.name}</p>
+          {row.original.organization && (
+            <p className="text-xs text-text-muted">{row.original.organization}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'phone',
+      header: 'Phone',
+      cell: ({ row }) => (
+        <span className="font-mono text-xs text-text-secondary">{row.original.phone || '—'}</span>
+      ),
+    },
+    {
+      accessorKey: 'contact_status',
+      header: 'Contact Status',
+      cell: ({ row }) => <ContactStatusBadge status={row.original.contact_status} />,
+    },
+    {
+      accessorKey: 'registration_status',
+      header: 'Registration',
+      cell: ({ row }) => <RegistrationBadge status={row.original.registration_status} />,
+    },
+    {
+      accessorKey: 'next_followup_date',
+      header: 'Next Follow-Up',
+      cell: ({ row }) => (
+        <FollowUpBadge date={row.original.next_followup_date} />
+      ),
+    },
+    {
+      accessorKey: 'assigned_to_name',
+      header: 'Assigned',
+      cell: ({ row }) => (
+        <span className="text-xs text-text-secondary">{row.original.assigned_to_name || '—'}</span>
+      ),
+    },
+    {
+      accessorKey: 'last_attempt_date',
+      header: 'Last Attempt',
+      cell: ({ row }) => (
+        <span className="font-mono text-xs text-text-muted">{timeAgo(row.original.last_attempt_date)}</span>
+      ),
+    },
+  ]
+
+  const columns: ColumnDef<ContactListItem>[] = isAdmin
+    ? [
+        {
+          id: 'select',
+          header: () => (
+            <button
+              onClick={() =>
+                setSelectedIds(
+                  selectedIds.size === data?.items.length
+                    ? new Set()
+                    : new Set(data?.items.map((c: ContactListItem) => c.id) ?? [])
+                )
+              }
+              className="btn-ghost btn-icon btn-sm"
+              aria-label={selectedIds.size === data?.items.length ? 'Deselect all' : 'Select all'}
+            >
+              {selectedIds.size === data?.items.length && data?.items.length > 0 ? (
+                <CheckSquare size={14} />
+              ) : (
+                <Square size={14} />
+              )}
+            </button>
+          ),
+          cell: ({ row }) => (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setSelectedIds((prev) => {
+                  const next = new Set(prev)
+                  next.has(row.original.id) ? next.delete(row.original.id) : next.add(row.original.id)
+                  return next
+                })
+              }}
+              className="btn-ghost btn-icon btn-sm"
+              aria-label={`${selectedIds.has(row.original.id) ? 'Deselect' : 'Select'} ${row.original.name}`}
+              aria-pressed={selectedIds.has(row.original.id)}
+            >
+              {selectedIds.has(row.original.id) ? <CheckSquare size={14} /> : <Square size={14} />}
+            </button>
+          ),
+          size: 40,
+        },
+        ...baseColumns,
+      ]
+    : baseColumns
+
+  const table = useReactTable({
+    data: data?.items ?? [],
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    manualSorting: true,
+    manualPagination: true,
+    pageCount: data?.total_pages ?? -1,
+    state: { sorting },
+    onSortingChange: (updater) => {
+      const next = typeof updater === 'function' ? updater(sorting) : updater
+      if (next.length > 0) {
+        setFilter('sort_by', next[0].id)
+        setFilter('sort_order', next[0].desc ? 'desc' : 'asc')
+      }
+    },
+  })
+
+  const activeFilterCount = [
+    filters.search,
+    filters.contact_status,
+    filters.registration_status,
+    filters.overdue_only,
+  ].filter(Boolean).length
+
+  return (
+    <AppLayout>
+      {/* Page Header */}
+      <PageHeader
+        title="Contacts"
+        subtitle={data ? `${data.total.toLocaleString()} contacts` : undefined}
+        actions={
+          <>
+            {!isAdmin && (
+              <span className="px-2.5 py-1 text-xs rounded-full bg-neutral-800 text-neutral-400 font-medium border border-neutral-700">
+                Viewer Mode (Read-Only)
+              </span>
+            )}
+            {isAdmin && (
+              <button
+                className="btn-secondary btn-sm"
+                onClick={() => navigate('/contacts/import')}
+              >
+                <Upload size={14} />
+                Import
+              </button>
+            )}
+            {isAdmin && (
+              <button className="btn-primary btn-sm" onClick={() => setCreateModalOpen(true)}>
+                <Plus size={14} />
+                Add Contact
+              </button>
+            )}
+            <button className="btn-secondary btn-sm" onClick={handleExport}>
+              <Download size={14} />
+              Export
+            </button>
+          </>
+        }
+      />
+
+      {/* ── Filter Bar ───────────────────────────────────────────── */}
+      <div className="px-6 py-3 border-b border-border bg-surface-0 flex items-center gap-3">
+        {/* Search */}
+        <div className="relative flex-1 max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
+          <input
+            type="search"
+            placeholder="Search name, phone, email…"
+            value={filters.search || ''}
+            onChange={(e) => setFilter('search', e.target.value || undefined)}
+            className="input pl-9 h-8 text-sm"
+            aria-label="Search contacts"
+          />
+        </div>
+
+        {/* Contact Status filter */}
+        <select
+          value={filters.contact_status || ''}
+          onChange={(e) => setFilter('contact_status', e.target.value || undefined)}
+          className="select h-8 text-sm w-44"
+          aria-label="Filter by contact status"
+        >
+          <option value="">All statuses</option>
+          {Object.entries(CONTACT_STATUS_LABELS).map(([val, label]) => (
+            <option key={val} value={val}>{label}</option>
+          ))}
+        </select>
+
+        {/* Registration Status filter */}
+        <select
+          value={filters.registration_status || ''}
+          onChange={(e) => setFilter('registration_status', e.target.value || undefined)}
+          className="select h-8 text-sm w-44"
+          aria-label="Filter by registration status"
+        >
+          <option value="">All registrations</option>
+          {Object.entries(REGISTRATION_STATUS_LABELS).map(([val, label]) => (
+            <option key={val} value={val}>{label}</option>
+          ))}
+        </select>
+
+        {/* Overdue toggle */}
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={filters.overdue_only || false}
+            onChange={(e) => setFilter('overdue_only', e.target.checked ? 'true' : undefined)}
+            className="w-3.5 h-3.5 accent-brand-500"
+            aria-label="Show overdue follow-ups only"
+          />
+          <span className="text-sm text-text-secondary">Overdue only</span>
+        </label>
+
+        {/* Clear filters */}
+        {activeFilterCount > 0 && (
+          <button
+            className="btn-ghost btn-sm text-red-400 hover:text-red-300"
+            onClick={() => setSearchParams(new URLSearchParams())}
+          >
+            <X size={13} />
+            Clear ({activeFilterCount})
+          </button>
+        )}
+      </div>
+
+      {/* ── Bulk Action Bar ───────────────────────────────────────── */}
+      {isAdmin && selectedIds.size > 0 && (
+        <div
+          className="px-6 py-2 bg-brand-900/30 border-b border-brand-700/40 flex items-center gap-3"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="text-sm text-brand-300 font-medium">{selectedIds.size} selected</span>
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              className="btn-secondary btn-sm"
+              onClick={() => { setBulkAction('mark_not_interested'); setShowBulkConfirm(true) }}
+            >
+              Mark Not Interested
+            </button>
+            {isAdmin && (
+              <button
+                className="btn-danger btn-sm"
+                onClick={() => { setBulkAction('archive'); setShowBulkConfirm(true) }}
+              >
+                <Trash2 size={13} />
+                Archive
+              </button>
+            )}
+            <button
+              className="btn-ghost btn-sm"
+              onClick={() => setSelectedIds(new Set())}
+              aria-label="Clear selection"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Table ────────────────────────────────────────────────── */}
+      <div className="overflow-auto">
+        <table className="fms-table" aria-label="Contacts list">
+          <thead>
+            {table.getHeaderGroups().map((hg) => (
+              <tr key={hg.id}>
+                {hg.headers.map((header) => {
+                  const canSort = header.column.getCanSort()
+                  const sortDir = header.column.getIsSorted()
+                  return (
+                    <th
+                      key={header.id}
+                      className={canSort ? 'sortable' : ''}
+                      onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
+                      aria-sort={
+                        sortDir === 'asc' ? 'ascending'
+                        : sortDir === 'desc' ? 'descending'
+                        : undefined
+                      }
+                      style={{ width: header.column.getSize() }}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {canSort && sortDir === 'asc' && <ChevronUp size={12} aria-hidden />}
+                        {canSort && sortDir === 'desc' && <ChevronDown size={12} aria-hidden />}
+                      </span>
+                    </th>
+                  )
+                })}
+              </tr>
+            ))}
+          </thead>
+
+          {isLoading ? (
+            <TableSkeleton rows={10} cols={columns.length} />
+          ) : (
+            <tbody>
+              {table.getRowModel().rows.length === 0 ? (
+                <tr>
+                  <td colSpan={columns.length} className="text-center py-16 text-text-muted">
+                    No contacts found
+                  </td>
+                </tr>
+              ) : (
+                table.getRowModel().rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    onClick={() => navigate(`/contacts/${row.original.id}`)}
+                    className={selectedIds.has(row.original.id) ? 'bg-brand-900/20' : ''}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          )}
+        </table>
+      </div>
+
+      {/* ── Pagination ───────────────────────────────────────────── */}
+      {data && data.total_pages > 1 && (
+        <div className="flex items-center justify-between px-6 py-3 border-t border-border">
+          <p className="text-xs text-text-muted">
+            Page {data.page} of {data.total_pages} — {data.total.toLocaleString()} total
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              className="btn-ghost btn-icon btn-sm"
+              disabled={data.page <= 1}
+              onClick={() => setFilter('page', '1')}
+              aria-label="First page"
+            >
+              <ChevronsLeft size={14} />
+            </button>
+            <button
+              className="btn-ghost btn-icon btn-sm"
+              disabled={data.page <= 1}
+              onClick={() => setFilter('page', String(data.page - 1))}
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <span className="px-3 text-sm text-text-secondary font-mono">{data.page}</span>
+            <button
+              className="btn-ghost btn-icon btn-sm"
+              disabled={data.page >= data.total_pages}
+              onClick={() => setFilter('page', String(data.page + 1))}
+              aria-label="Next page"
+            >
+              <ChevronRight size={14} />
+            </button>
+            <button
+              className="btn-ghost btn-icon btn-sm"
+              disabled={data.page >= data.total_pages}
+              onClick={() => setFilter('page', String(data.total_pages))}
+              aria-label="Last page"
+            >
+              <ChevronsRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk confirm dialog */}
+      <ConfirmDialog
+        isOpen={showBulkConfirm}
+        onClose={() => setShowBulkConfirm(false)}
+        onConfirm={() => {
+          bulkMutation.mutate({
+            action: bulkAction === 'archive' ? 'archive' : 'change_status',
+            contact_ids: Array.from(selectedIds),
+            value: bulkAction === 'archive' ? undefined : 'not_interested',
+          })
+        }}
+        title={bulkAction === 'archive' ? 'Archive Contacts' : 'Mark as Not Interested'}
+        message={`Are you sure you want to ${bulkAction === 'archive' ? 'archive' : 'mark as Not Interested'} ${selectedIds.size} contact(s)?`}
+        isDanger={bulkAction === 'archive'}
+      />
+
+      <Modal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        title="Create New Contact"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            const fd = new FormData(e.currentTarget)
+            const st = (fd.get('contact_status') as string) || 'not_contacted'
+            const fuDateRaw = fd.get('followup_date') as string
+            const followup_date = fuDateRaw ? new Date(fuDateRaw).toISOString() : (st === 'follow_up_required' ? new Date().toISOString() : null)
+            createContactMutation.mutate({
+              name: fd.get('name') as string,
+              organization: (fd.get('organization') as string) || null,
+              designation: (fd.get('designation') as string) || null,
+              phone: (fd.get('phone') as string) || null,
+              whatsapp: (fd.get('whatsapp') as string) || null,
+              email: (fd.get('email') as string) || null,
+              city: (fd.get('city') as string) || null,
+              notes: (fd.get('notes') as string) || null,
+              assigned_to_id: fd.get('assigned_to_id') ? Number(fd.get('assigned_to_id')) : null,
+              contact_status: st,
+              followup_date,
+              preferred_time: (fd.get('preferred_time') as string) || null,
+              followup_reason: (fd.get('followup_reason') as string) || null,
+            })
+          }}
+          className="space-y-4 text-xs"
+        >
+          <div>
+            <label className="text-neutral-300 block mb-1 font-medium">Full Name <span className="text-rose-500">*</span></label>
+            <input type="text" name="name" required className="input-text w-full" placeholder="John Doe" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-neutral-300 block mb-1 font-medium">Phone</label>
+              <input type="text" name="phone" className="input-text w-full font-mono" placeholder="+1234567890" />
+            </div>
+            <div>
+              <label className="text-neutral-300 block mb-1 font-medium">Email</label>
+              <input type="email" name="email" className="input-text w-full font-mono" placeholder="john@example.com" />
+            </div>
+          </div>
+          <p className="text-neutral-500 text-xs italic -mt-2">Note: At least one of phone or email is required.</p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-neutral-300 block mb-1 font-medium">Organization / College</label>
+              <input type="text" name="organization" className="input-text w-full" />
+            </div>
+            <div>
+              <label className="text-neutral-300 block mb-1 font-medium">Designation</label>
+              <input type="text" name="designation" className="input-text w-full" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-neutral-300 block mb-1 font-medium">WhatsApp</label>
+              <input type="text" name="whatsapp" className="input-text w-full font-mono" />
+            </div>
+            <div>
+              <label className="text-neutral-300 block mb-1 font-medium">City</label>
+              <input type="text" name="city" className="input-text w-full" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-neutral-300 block mb-1 font-medium">Initial Status</label>
+              <select
+                name="contact_status"
+                className="input-select w-full"
+                value={createStatus}
+                onChange={(e) => setCreateStatus(e.target.value)}
+              >
+                {Object.entries(CONTACT_STATUS_LABELS).map(([k, label]) => (
+                  <option key={k} value={k}>{label}</option>
+                ))}
+              </select>
+            </div>
+            {isAdmin && (
+              <div>
+                <label className="text-neutral-300 block mb-1 font-medium">Assign To</label>
+                <select name="assigned_to_id" className="input-select w-full">
+                  <option value="">Unassigned</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {createStatus === 'follow_up_required' && (
+            <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 space-y-3">
+              <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-xs">
+                <span>Schedule Follow-Up Task</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-neutral-300 block mb-1 font-medium">Follow-Up Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    name="followup_date"
+                    defaultValue={new Date().toISOString().slice(0, 16)}
+                    className="input-text w-full font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-neutral-300 block mb-1 font-medium">Preferred Time Window</label>
+                  <input
+                    type="text"
+                    name="preferred_time"
+                    placeholder="e.g. Afternoon, 2-4 PM"
+                    className="input-text w-full"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-neutral-300 block mb-1 font-medium">Follow-Up Reason / Goal</label>
+                <input
+                  type="text"
+                  name="followup_reason"
+                  placeholder="e.g. Discuss course syllabus & pricing"
+                  className="input-text w-full"
+                />
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="text-neutral-300 block mb-1 font-medium">General Notes</label>
+            <textarea name="notes" rows={2} className="input-text w-full" />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4 border-t border-neutral-800">
+            <button
+              type="button"
+              onClick={() => {
+                setCreateModalOpen(false)
+                setCreateStatus('not_contacted')
+              }}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button type="submit" disabled={createContactMutation.isPending} className="btn-primary">
+              {createContactMutation.isPending ? 'Creating...' : 'Create Contact'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </AppLayout>
+  )
+}
