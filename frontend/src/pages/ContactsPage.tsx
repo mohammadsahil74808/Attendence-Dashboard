@@ -286,68 +286,71 @@ export default function ContactsPage() {
       />
 
       {/* ── Filter Bar ───────────────────────────────────────────── */}
-      <div className="px-6 py-3 border-b border-border bg-surface-0 flex items-center gap-3">
+      <div className="px-4 sm:px-6 py-3 border-b border-border bg-surface-0 flex flex-col sm:flex-row flex-wrap sm:items-center gap-2.5">
         {/* Search */}
-        <div className="relative flex-1 max-w-xs">
+        <div className="relative w-full sm:w-64">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
           <input
             type="search"
             placeholder="Search name, phone, email…"
             value={filters.search || ''}
             onChange={(e) => setFilter('search', e.target.value || undefined)}
-            className="input pl-9 h-8 text-sm"
+            className="input pl-9 h-8 text-sm w-full"
             aria-label="Search contacts"
           />
         </div>
 
-        {/* Contact Status filter */}
-        <select
-          value={filters.contact_status || ''}
-          onChange={(e) => setFilter('contact_status', e.target.value || undefined)}
-          className="select h-8 text-sm w-44"
-          aria-label="Filter by contact status"
-        >
-          <option value="">All statuses</option>
-          {Object.entries(CONTACT_STATUS_LABELS).map(([val, label]) => (
-            <option key={val} value={val}>{label}</option>
-          ))}
-        </select>
-
-        {/* Registration Status filter */}
-        <select
-          value={filters.registration_status || ''}
-          onChange={(e) => setFilter('registration_status', e.target.value || undefined)}
-          className="select h-8 text-sm w-44"
-          aria-label="Filter by registration status"
-        >
-          <option value="">All registrations</option>
-          {Object.entries(REGISTRATION_STATUS_LABELS).map(([val, label]) => (
-            <option key={val} value={val}>{label}</option>
-          ))}
-        </select>
-
-        {/* Overdue toggle */}
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={filters.overdue_only || false}
-            onChange={(e) => setFilter('overdue_only', e.target.checked ? 'true' : undefined)}
-            className="w-3.5 h-3.5 accent-brand-500"
-            aria-label="Show overdue follow-ups only"
-          />
-          <span className="text-sm text-text-secondary">Overdue only</span>
-        </label>
-
-        {/* Clear filters */}
-        {activeFilterCount > 0 && (
-          <button
-            className="btn-ghost btn-sm text-red-400 hover:text-red-300"
-            onClick={() => setSearchParams(new URLSearchParams())}
+        {/* Status filters */}
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          {/* Contact Status filter */}
+          <select
+            value={filters.contact_status || ''}
+            onChange={(e) => setFilter('contact_status', e.target.value || undefined)}
+            className="select h-8 text-sm flex-1 sm:w-40 sm:flex-none"
+            aria-label="Filter by contact status"
           >
-            <X size={13} />
-            Clear ({activeFilterCount})
-          </button>
-        )}
+            <option value="">All statuses</option>
+            {Object.entries(CONTACT_STATUS_LABELS).map(([val, label]) => (
+              <option key={val} value={val}>{label}</option>
+            ))}
+          </select>
+
+          {/* Registration Status filter */}
+          <select
+            value={filters.registration_status || ''}
+            onChange={(e) => setFilter('registration_status', e.target.value || undefined)}
+            className="select h-8 text-sm flex-1 sm:w-40 sm:flex-none"
+            aria-label="Filter by registration status"
+          >
+            <option value="">All registrations</option>
+            {Object.entries(REGISTRATION_STATUS_LABELS).map(([val, label]) => (
+              <option key={val} value={val}>{label}</option>
+            ))}
+          </select>
+
+          {/* Overdue toggle */}
+          <label className="flex items-center gap-1.5 cursor-pointer select-none px-2 py-1 bg-surface-1 sm:bg-transparent rounded">
+            <input
+              type="checkbox"
+              checked={filters.overdue_only || false}
+              onChange={(e) => setFilter('overdue_only', e.target.checked ? 'true' : undefined)}
+              className="w-3.5 h-3.5 accent-brand-500"
+              aria-label="Show overdue follow-ups only"
+            />
+            <span className="text-xs sm:text-sm text-text-secondary whitespace-nowrap">Overdue only</span>
+          </label>
+
+          {/* Clear filters */}
+          {activeFilterCount > 0 && (
+            <button
+              className="btn-ghost btn-sm text-red-400 hover:text-red-300"
+              onClick={() => setSearchParams(new URLSearchParams())}
+            >
+              <X size={13} />
+              Clear ({activeFilterCount})
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Bulk Action Bar ───────────────────────────────────────── */}
@@ -386,8 +389,8 @@ export default function ContactsPage() {
       )}
 
       {/* ── Table ────────────────────────────────────────────────── */}
-      <div className="overflow-auto">
-        <table className="fms-table" aria-label="Contacts list">
+      <div className="overflow-x-auto w-full">
+        <table className="fms-table min-w-[650px]" aria-label="Contacts list">
           <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>

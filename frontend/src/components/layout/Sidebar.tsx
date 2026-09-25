@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Upload, CalendarClock,
   FileBarChart, Settings, LogOut, UserCog,
-  Activity,
+  Activity, X,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { cn } from '../../lib/utils'
@@ -20,23 +20,28 @@ const adminItems = [
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  onClose?: () => void
+}
+
+export function Sidebar({ onClose }: SidebarProps = {}) {
   const { user, logout, isAdmin } = useAuth()
   const navigate = useNavigate()
 
   function handleLogout() {
+    onClose?.()
     logout()
     navigate('/login')
   }
 
   return (
     <nav
-      className="w-56 flex-shrink-0 bg-surface-1 border-r border-border flex flex-col h-screen sticky top-0"
+      className="w-full md:w-56 flex-shrink-0 bg-surface-1 border-r border-border flex flex-col h-full sticky top-0"
       role="navigation"
       aria-label="Main navigation"
     >
       {/* Brand */}
-      <div className="px-4 py-4 border-b border-border">
+      <div className="px-4 py-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 bg-brand-600 rounded flex items-center justify-center flex-shrink-0">
             <Activity size={14} className="text-white" />
@@ -46,6 +51,15 @@ export function Sidebar() {
             <p className="text-xs text-text-muted mt-0.5 leading-none">Follow-Up System</p>
           </div>
         </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="md:hidden p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-2 transition-colors"
+            aria-label="Close menu"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       {/* Primary nav */}
@@ -57,6 +71,7 @@ export function Sidebar() {
           <NavLink
             key={to}
             to={to}
+            onClick={onClose}
             className={({ isActive }) =>
               cn('nav-item', isActive && 'active')
             }
@@ -75,6 +90,7 @@ export function Sidebar() {
               <NavLink
                 key={to}
                 to={to}
+                onClick={onClose}
                 className={({ isActive }) =>
                   cn('nav-item', isActive && 'active')
                 }

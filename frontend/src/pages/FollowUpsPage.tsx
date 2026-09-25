@@ -63,7 +63,7 @@ export default function FollowUpsPage() {
 
   return (
     <AppLayout>
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
         <PageHeader
           title="Follow-Up Tasks"
           subtitle="Manage scheduled call-backs, reminders, and pending outreach tasks"
@@ -85,10 +85,10 @@ export default function FollowUpsPage() {
         />
 
         {/* View Tabs */}
-        <div className="flex border-b border-neutral-800 gap-2">
+        <div className="flex border-b border-neutral-800 gap-1 sm:gap-2 overflow-x-auto pb-1 scrollbar-none">
           <button
             onClick={() => setView('due_today')}
-            className={`px-4 py-2.5 text-xs font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            className={`px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap ${
               activeView === 'due_today'
                 ? 'border-indigo-500 text-indigo-400 font-semibold'
                 : 'border-transparent text-neutral-400 hover:text-neutral-200'
@@ -100,7 +100,7 @@ export default function FollowUpsPage() {
 
           <button
             onClick={() => setView('overdue')}
-            className={`px-4 py-2.5 text-xs font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            className={`px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap ${
               activeView === 'overdue'
                 ? 'border-rose-500 text-rose-400 font-semibold'
                 : 'border-transparent text-neutral-400 hover:text-neutral-200'
@@ -112,7 +112,7 @@ export default function FollowUpsPage() {
 
           <button
             onClick={() => setView('upcoming')}
-            className={`px-4 py-2.5 text-xs font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            className={`px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap ${
               activeView === 'upcoming'
                 ? 'border-indigo-500 text-indigo-400 font-semibold'
                 : 'border-transparent text-neutral-400 hover:text-neutral-200'

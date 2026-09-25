@@ -225,9 +225,9 @@ export default function ContactDetailPage() {
 
   return (
     <AppLayout>
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
         {/* Navigation Breadcrumb & Back */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <button
             onClick={() => navigate('/contacts')}
             className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-neutral-200 transition-colors"
@@ -237,45 +237,45 @@ export default function ContactDetailPage() {
           </button>
 
           {isAdmin ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => setAttemptModalOpen(true)}
-                className="btn-primary inline-flex items-center gap-2"
+                className="btn-primary text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
               >
-                <Phone className="w-4 h-4" />
+                <Phone className="w-3.5 h-3.5" />
                 Log Attempt
               </button>
               <button
                 onClick={() => setFeedbackModalOpen(true)}
-                className="btn-secondary inline-flex items-center gap-2"
+                className="btn-secondary text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
               >
-                <MessageSquare className="w-4 h-4" />
+                <MessageSquare className="w-3.5 h-3.5" />
                 Feedback
               </button>
               <button
                 onClick={() => setRegistrationModalOpen(true)}
-                className="btn-secondary inline-flex items-center gap-2"
+                className="btn-secondary text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
               >
-                <CheckCircle className="w-4 h-4" />
+                <CheckCircle className="w-3.5 h-3.5" />
                 Registration
               </button>
               <button
                 onClick={() => setFollowupModalOpen(true)}
-                className="btn-secondary inline-flex items-center gap-2"
+                className="btn-secondary text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
               >
-                <Calendar className="w-4 h-4" />
+                <Calendar className="w-3.5 h-3.5" />
                 Follow-Up
               </button>
             </div>
           ) : (
-            <span className="px-3 py-1.5 rounded-full bg-neutral-800 text-neutral-400 text-xs font-medium border border-neutral-700">
+            <span className="px-3 py-1.5 rounded-full bg-neutral-800 text-neutral-400 text-xs font-medium border border-neutral-700 w-fit">
               Viewer Mode (Read-Only)
             </span>
           )}
         </div>
 
         {/* Top Header Card */}
-        <div className="panel p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 border-l-4 border-indigo-500">
+        <div className="panel p-4 sm:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 border-l-4 border-indigo-500">
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold text-neutral-100 tracking-tight">{contact.name}</h1>

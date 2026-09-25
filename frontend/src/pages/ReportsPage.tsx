@@ -76,14 +76,14 @@ export default function ReportsPage() {
 
   return (
     <AppLayout>
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
         <PageHeader
           title="Reports & Data Export"
           subtitle="Generate outreach reports, track team progress, and export filtered contact datasets"
         />
 
         {/* Export Data Panel */}
-        <div className="panel p-6 space-y-6 border-l-4 border-emerald-500">
+        <div className="panel p-4 sm:p-6 space-y-4 sm:space-y-6 border-l-4 border-emerald-500">
           <div>
             <h3 className="text-base font-semibold text-neutral-100 flex items-center gap-2">
               <Download className="w-5 h-5 text-emerald-400" />
