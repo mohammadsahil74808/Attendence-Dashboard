@@ -51,6 +51,7 @@ export default function ContactsPage() {
   const [bulkAction, setBulkAction] = useState<string | null>(null)
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [createStatus, setCreateStatus] = useState('not_contacted')
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['users'],
@@ -115,28 +116,30 @@ export default function ContactsPage() {
     onError: () => toast('Bulk action failed', 'error'),
   })
 
-  async function handleExport() {
+  async function handleExport(exportFormat: 'xlsx' | 'csv' = 'xlsx') {
+    setShowExportMenu(false)
     try {
       const params = new URLSearchParams()
       if (filters.search) params.set('search', filters.search)
       if (filters.contact_status) params.set('contact_status', filters.contact_status)
-      params.set('format', 'xlsx')
+      params.set('format', exportFormat)
 
       const response = await api.get(`/contacts/export?${params.toString()}`, {
         responseType: 'blob',
       })
-      const blob = new Blob([response.data], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      })
+      const mimeType = exportFormat === 'csv'
+        ? 'text/csv;charset=utf-8;'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      const blob = new Blob([response.data], { type: mimeType })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `contacts_export_${new Date().toISOString().slice(0, 10)}.xlsx`
+      a.download = `contacts_export_${new Date().toISOString().slice(0, 10)}.${exportFormat}`
       document.body.appendChild(a)
       a.click()
       a.remove()
       window.URL.revokeObjectURL(url)
-      toast('Export downloaded successfully', 'success')
+      toast(`Export (.${exportFormat.toUpperCase()}) downloaded successfully`, 'success')
     } catch (err) {
       toast('Failed to download export', 'error')
     }
@@ -296,10 +299,36 @@ export default function ContactsPage() {
                 Add Contact
               </button>
             )}
-            <button className="btn-secondary btn-sm" onClick={handleExport}>
-              <Download size={14} />
-              Export
-            </button>
+            <div className="relative">
+              <button
+                className="btn-secondary btn-sm flex items-center gap-1.5"
+                onClick={() => setShowExportMenu((v) => !v)}
+                title="Export contacts"
+              >
+                <Download size={14} />
+                <span>Export</span>
+                <ChevronDown size={12} className={`transition-transform duration-200 ${showExportMenu ? 'rotate-180' : ''}`} />
+              </button>
+              {showExportMenu && (
+                <div
+                  className="absolute right-0 mt-1 w-36 bg-surface-1 border border-border rounded-lg shadow-2xl z-50 py-1"
+                  onMouseLeave={() => setShowExportMenu(false)}
+                >
+                  <button
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-surface-2 text-text-primary flex items-center gap-2"
+                    onClick={() => handleExport('xlsx')}
+                  >
+                    <span className="font-semibold text-emerald-400">Excel</span> (.xlsx)
+                  </button>
+                  <button
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-surface-2 text-text-primary flex items-center gap-2"
+                    onClick={() => handleExport('csv')}
+                  >
+                    <span className="font-semibold text-blue-400">CSV</span> (.csv)
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         }
       />

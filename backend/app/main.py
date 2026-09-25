@@ -37,6 +37,21 @@ def ensure_default_users():
                 is_active=True,
             )
             db.add(member)
+
+        # Seed default contact if database is fresh/empty
+        from app.models import Contact, ContactStatus
+        if db.query(Contact).filter(Contact.is_archived == False).count() == 0:
+            sample_contact = Contact(
+                name="Sahil Ansari",
+                organization="lingayas vidyapeeth",
+                designation="faridabad",
+                phone="9289345249",
+                email="sahilansari74808@gmail.com",
+                contact_status=ContactStatus.interested,
+                is_archived=False,
+            )
+            db.add(sample_contact)
+
         db.commit()
     except Exception as e:
         db.rollback()

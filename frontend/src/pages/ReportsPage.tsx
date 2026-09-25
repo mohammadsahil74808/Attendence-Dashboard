@@ -48,7 +48,10 @@ export default function ReportsPage() {
         responseType: 'blob',
       })
 
-      const blob = new Blob([response.data])
+      const mimeType = exportFormat === 'csv'
+        ? 'text/csv;charset=utf-8;'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      const blob = new Blob([response.data], { type: mimeType })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url

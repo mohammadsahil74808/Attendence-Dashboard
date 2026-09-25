@@ -7,7 +7,7 @@ from datetime import datetime, timezone, date
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, func
 import pandas as pd
@@ -297,22 +297,35 @@ async def export_contacts(
             "Created At": str(c.created_at),
         })
 
-    df = pd.DataFrame(rows)
+    export_columns = [
+        "ID", "Name", "Organization", "Designation", "Phone", "WhatsApp",
+        "Email", "City", "Source", "Contact Status", "Registration Status",
+        "Feedback Status", "Next Follow-Up", "Last Attempt", "Assigned To",
+        "Notes", "Created At"
+    ]
+    df = pd.DataFrame(rows, columns=export_columns)
     buf = io.BytesIO()
 
     if format == "csv":
-        df.to_csv(buf, index=False)
-        buf.seek(0)
-        return StreamingResponse(buf, media_type="text/csv",
-                                 headers={"Content-Disposition": "attachment; filename=contacts.csv"})
+        df.to_csv(buf, index=False, encoding="utf-8-sig")
+        return Response(
+            content=buf.getvalue(),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": "attachment; filename=contacts.csv",
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
+        )
     else:
         with pd.ExcelWriter(buf, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="Contacts")
-        buf.seek(0)
-        return StreamingResponse(
-            buf,
+        return Response(
+            content=buf.getvalue(),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": "attachment; filename=contacts.xlsx"},
+            headers={
+                "Content-Disposition": "attachment; filename=contacts.xlsx",
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
         )
 
 
