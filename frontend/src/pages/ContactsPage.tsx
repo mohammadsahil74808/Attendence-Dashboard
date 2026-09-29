@@ -21,7 +21,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import api from '../lib/api'
 import { timeAgo } from '../lib/utils'
-import type { ContactListItem, ContactFilters, ContactStatus, RegistrationStatus, User } from '../types'
+import type { ContactListItem, ContactFilters, ContactStatus, RegistrationStatus } from '../types'
 import { CONTACT_STATUS_LABELS, REGISTRATION_STATUS_LABELS } from '../types'
 
 const PAGE_SIZE = 50
@@ -55,14 +55,7 @@ export default function ContactsPage() {
   const [createStatus, setCreateStatus] = useState('not_contacted')
   const [showExportMenu, setShowExportMenu] = useState(false)
 
-  const { data: users = [] } = useQuery<User[]>({
-    queryKey: ['users'],
-    queryFn: async () => {
-      const res = await api.get('/users/')
-      return res.data
-    },
-    enabled: isAdmin,
-  })
+
 
   const createContactMutation = useMutation({
     mutationFn: (data: any) => api.post('/contacts/', data),
@@ -214,13 +207,6 @@ export default function ContactsPage() {
       header: 'Next Follow-Up',
       cell: ({ row }) => (
         <FollowUpBadge date={row.original.next_followup_date} />
-      ),
-    },
-    {
-      accessorKey: 'assigned_to_name',
-      header: 'Assigned',
-      cell: ({ row }) => (
-        <span className="text-xs text-text-secondary">{row.original.assigned_to_name || '—'}</span>
       ),
     },
     {
@@ -793,31 +779,18 @@ export default function ContactsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-neutral-300 block mb-1 font-medium">Initial Status</label>
-              <select
-                name="contact_status"
-                className="input-select w-full"
-                value={createStatus}
-                onChange={(e) => setCreateStatus(e.target.value)}
-              >
-                {Object.entries(CONTACT_STATUS_LABELS).map(([k, label]) => (
-                  <option key={k} value={k}>{label}</option>
-                ))}
-              </select>
-            </div>
-            {isAdmin && (
-              <div>
-                <label className="text-neutral-300 block mb-1 font-medium">Assign To</label>
-                <select name="assigned_to_id" className="input-select w-full">
-                  <option value="">Unassigned</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+          <div>
+            <label className="text-neutral-300 block mb-1 font-medium">Initial Status</label>
+            <select
+              name="contact_status"
+              className="input-select w-full"
+              value={createStatus}
+              onChange={(e) => setCreateStatus(e.target.value)}
+            >
+              {Object.entries(CONTACT_STATUS_LABELS).map(([k, label]) => (
+                <option key={k} value={k}>{label}</option>
+              ))}
+            </select>
           </div>
 
           {createStatus === 'follow_up_required' && (

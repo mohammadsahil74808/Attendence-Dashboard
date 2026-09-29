@@ -17,6 +17,21 @@ def ensure_default_users():
     from app.core.security import get_password_hash
     db = SessionLocal()
     try:
+        # Primary Administrator
+        sahil = db.query(User).filter(User.email == "sahilansari74808@gmail.com").first()
+        if not sahil:
+            sahil = User(
+                name="Sahil Ansari",
+                email="sahilansari74808@gmail.com",
+                password_hash=get_password_hash("admin123"),
+                role=UserRole.admin,
+                is_active=True,
+            )
+            db.add(sahil)
+        else:
+            sahil.role = UserRole.admin
+            sahil.is_active = True
+
         admin = db.query(User).filter(User.email == "admin@fms.internal").first()
         if not admin:
             admin = User(
@@ -27,16 +42,6 @@ def ensure_default_users():
                 is_active=True,
             )
             db.add(admin)
-        member = db.query(User).filter(User.email == "member@fms.internal").first()
-        if not member:
-            member = User(
-                name="Sarah Outreach",
-                email="member@fms.internal",
-                password_hash=get_password_hash("member123"),
-                role=UserRole.member,
-                is_active=True,
-            )
-            db.add(member)
 
         # Seed default contact if database is fresh/empty
         from app.models import Contact, ContactStatus

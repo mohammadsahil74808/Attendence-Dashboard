@@ -19,12 +19,20 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const [showPwd, setShowPwd] = useState(false)
 
+  const defaultEmail = import.meta.env.VITE_DEFAULT_EMAIL || import.meta.env.VITE_USER_EMAIL || 'sahilansari74808@gmail.com'
+  const defaultPassword = import.meta.env.VITE_DEFAULT_PASSWORD || import.meta.env.VITE_USER_PASSWORD || ''
+
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
-  } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) })
+  } = useForm<LoginForm>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: defaultEmail,
+      password: defaultPassword,
+    },
+  })
 
   if (user) return <Navigate to="/dashboard" replace />
 
@@ -115,32 +123,6 @@ export default function LoginPage() {
               {isLoading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
-
-          <div className="mt-5 pt-4 border-t border-surface-2 space-y-2">
-            <p className="text-xs text-text-muted font-medium">Quick Fill Credentials:</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setValue('email', 'admin@fms.internal')
-                  setValue('password', 'admin123')
-                }}
-                className="btn-secondary text-xs h-8 justify-center"
-              >
-                Admin (admin123)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setValue('email', 'member@fms.internal')
-                  setValue('password', 'member123')
-                }}
-                className="btn-secondary text-xs h-8 justify-center"
-              >
-                Member (member123)
-              </button>
-            </div>
-          </div>
         </div>
 
         <p className="mt-4 text-center text-xs text-text-muted">

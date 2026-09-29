@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, Phone, Mail, MessageSquare, Calendar, User as UserIcon,
+  ArrowLeft, Phone, Mail, MessageSquare, Calendar,
   Clock, CheckCircle, AlertCircle, Plus, Edit, Shield,
   ExternalLink, Building2, MapPin, Tag, Trash2, Trash, RotateCcw,
 } from 'lucide-react'
@@ -21,7 +21,6 @@ import type {
   Registration,
   FollowUp,
   AuditLog,
-  User,
   ContactStatus,
   RegistrationStatus,
 } from '../types'
@@ -85,15 +84,7 @@ export default function ContactDetailPage() {
     enabled: !!contactId,
   })
 
-  // Fetch users for assignment dropdown
-  const { data: users = [] } = useQuery<User[]>({
-    queryKey: ['users'],
-    queryFn: async () => {
-      const res = await api.get('/users/')
-      return res.data
-    },
-    enabled: isAdmin,
-  })
+
 
   // Fetch attempts
   const { data: attempts = [] } = useQuery<ContactAttempt[]>({
@@ -390,21 +381,7 @@ export default function ContactDetailPage() {
               </select>
             </div>
 
-            {isAdmin && (
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-neutral-400 block">Assigned To</label>
-                <select
-                  value={contact.assigned_to_id || ''}
-                  onChange={(e) => updateContactMutation.mutate({ assigned_to_id: e.target.value ? Number(e.target.value) : undefined })}
-                  className="input-select text-xs py-1.5 px-2.5 bg-neutral-900 border-neutral-700 text-neutral-200"
-                >
-                  <option value="">Unassigned</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+
           </div>
         </div>
 
@@ -469,13 +446,6 @@ export default function ContactDetailPage() {
                   )}
                 </div>
 
-                <div>
-                  <span className="text-neutral-500 text-xs block">Assigned Operator</span>
-                  <span className="text-neutral-200 flex items-center gap-2">
-                    <UserIcon className="w-3.5 h-3.5 text-neutral-400" />
-                    {contact.assigned_to ? contact.assigned_to.name : <span className="text-neutral-500 italic">Unassigned</span>}
-                  </span>
-                </div>
 
                 {contact.notes && (
                   <div>
@@ -890,9 +860,6 @@ export default function ContactDetailPage() {
                             )}
                           </div>
                           {fu.reason && <p className="text-xs text-neutral-300">{fu.reason}</p>}
-                          <div className="text-xs text-neutral-500">
-                            Assigned to: {fu.assigned_to?.name || 'Current Operator'}
-                          </div>
                         </div>
 
                         {fu.status === 'scheduled' && (
@@ -1211,7 +1178,6 @@ export default function ContactDetailPage() {
                 preferred_time: fd.get('preferred_time') || null,
                 reason: fd.get('reason'),
                 priority: fd.get('priority') || 'normal',
-                assigned_to_id: fd.get('assigned_to_id') ? Number(fd.get('assigned_to_id')) : contact.assigned_to_id,
               })
             }}
             className="space-y-4 text-xs"
@@ -1258,21 +1224,7 @@ export default function ContactDetailPage() {
               />
             </div>
 
-            {isAdmin && (
-              <div>
-                <label className="text-neutral-300 block mb-1 font-medium">Assign Task To</label>
-                <select
-                  name="assigned_to_id"
-                  defaultValue={contact.assigned_to_id || ''}
-                  className="input-select w-full"
-                >
-                  <option value="">Keep current assignee ({contact.assigned_to?.name || 'Unassigned'})</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+
 
             <div className="flex justify-end gap-2 pt-4">
               <button type="button" onClick={() => setFollowupModalOpen(false)} className="btn-secondary">
