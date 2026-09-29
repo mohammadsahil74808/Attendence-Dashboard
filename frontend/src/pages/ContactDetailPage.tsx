@@ -4,11 +4,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Phone, Mail, MessageSquare, Calendar, User as UserIcon,
   Clock, CheckCircle, AlertCircle, Plus, Edit, Shield,
-  ExternalLink, Building2, MapPin, Tag
+  ExternalLink, Building2, MapPin, Tag, Trash2, Trash, RotateCcw,
 } from 'lucide-react'
 import { AppLayout } from '../components/layout/AppLayout'
 import { ContactStatusBadge, RegistrationBadge } from '../components/ui/StatusBadges'
-import { Modal } from '../components/ui/Modal'
+import { Modal, ConfirmDialog } from '../components/ui/Modal'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
@@ -49,6 +49,31 @@ export default function ContactDetailPage() {
   const [registrationModalOpen, setRegistrationModalOpen] = useState(false)
   const [followupModalOpen, setFollowupModalOpen] = useState(false)
   const [editInfoModalOpen, setEditInfoModalOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [permanentDeleteConfirmOpen, setPermanentDeleteConfirmOpen] = useState(false)
+
+  const deleteContactMutation = useMutation({
+    mutationFn: (permanent: boolean = false) =>
+      api.delete(`/contacts/${contactId}${permanent ? '?permanent=true' : ''}`),
+    onSuccess: (_, permanent) => {
+      toast(permanent ? 'Contact permanently removed from database' : 'Contact moved to Trash', 'success')
+      queryClient.invalidateQueries({ queryKey: ['contacts'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] })
+      navigate('/contacts')
+    },
+    onError: () => toast('Failed to delete contact', 'error'),
+  })
+
+  const restoreContactMutation = useMutation({
+    mutationFn: () => api.post(`/contacts/${contactId}/restore`),
+    onSuccess: () => {
+      toast('Contact restored successfully', 'success')
+      queryClient.invalidateQueries({ queryKey: ['contact', contactId] })
+      queryClient.invalidateQueries({ queryKey: ['contacts'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] })
+    },
+    onError: () => toast('Failed to restore contact', 'error'),
+  })
 
   // Fetch contact detail
   const { data: contact, isLoading: contactLoading, error: contactError } = useQuery<Contact>({
@@ -266,6 +291,14 @@ export default function ContactDetailPage() {
                 <Calendar className="w-3.5 h-3.5" />
                 Follow-Up
               </button>
+              <button
+                onClick={() => setDeleteConfirmOpen(true)}
+                className="btn-danger text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
+                title="Move Contact to Trash"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete
+              </button>
             </div>
           ) : (
             <span className="px-3 py-1.5 rounded-full bg-neutral-800 text-neutral-400 text-xs font-medium border border-neutral-700 w-fit">
@@ -273,6 +306,33 @@ export default function ContactDetailPage() {
             </span>
           )}
         </div>
+
+        {/* Trash Status Banner */}
+        {contact.is_archived && (
+          <div className="p-4 rounded-xl bg-rose-950/40 border border-rose-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-rose-300 text-sm font-medium">
+              <Trash2 className="w-4 h-4 text-rose-400 flex-shrink-0" />
+              <span>This contact is currently in Trash. You can restore it to the active list or permanently delete it to free space.</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => restoreContactMutation.mutate()}
+                disabled={restoreContactMutation.isPending}
+                className="btn-secondary text-xs inline-flex items-center gap-1 text-emerald-400 border-emerald-500/30"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                {restoreContactMutation.isPending ? 'Restoring...' : 'Restore Contact'}
+              </button>
+              <button
+                onClick={() => setPermanentDeleteConfirmOpen(true)}
+                className="btn-danger text-xs inline-flex items-center gap-1 bg-rose-600 hover:bg-rose-500 text-white"
+              >
+                <Trash className="w-3.5 h-3.5" />
+                Delete Forever
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Top Header Card */}
         <div className="panel p-4 sm:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6 border-l-4 border-indigo-500">
@@ -1302,6 +1362,28 @@ export default function ContactDetailPage() {
             </div>
           </form>
         </Modal>
+
+        {/* Delete / Move to Trash Confirm Dialog */}
+        <ConfirmDialog
+          isOpen={deleteConfirmOpen}
+          onClose={() => setDeleteConfirmOpen(false)}
+          onConfirm={() => deleteContactMutation.mutate(false)}
+          title="Move Contact to Trash"
+          message={`Are you sure you want to move "${contact.name}" to Trash? You can restore it anytime from the Trash view.`}
+          confirmLabel="Move to Trash"
+          isDanger={true}
+        />
+
+        {/* Permanent Delete Confirm Dialog */}
+        <ConfirmDialog
+          isOpen={permanentDeleteConfirmOpen}
+          onClose={() => setPermanentDeleteConfirmOpen(false)}
+          onConfirm={() => deleteContactMutation.mutate(true)}
+          title="Permanently Delete from Database?"
+          message={`⚠️ DANGER: Are you sure you want to permanently delete "${contact.name}" from Supabase? All associated follow-ups, feedbacks, and attempts will also be removed. This frees up database space and CANNOT be undone.`}
+          confirmLabel="Delete Forever"
+          isDanger={true}
+        />
       </div>
     </AppLayout>
   )

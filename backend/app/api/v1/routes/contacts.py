@@ -111,10 +111,11 @@ async def list_contacts(
     followup_date_to: Optional[date] = Query(None),
     sort_by: str = Query("created_at"),
     sort_order: str = Query("desc"),
+    is_archived: bool = Query(False),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    query = db.query(Contact).filter(Contact.is_archived == False)
+    query = db.query(Contact).filter(Contact.is_archived == is_archived)
     query = _apply_row_security(query, current_user, db)
 
     # Filters
@@ -415,25 +416,59 @@ async def update_contact(
     return resp
 
 
-# ─── Archive ──────────────────────────────────────────────────────────────────
+# ─── Archive / Delete / Restore ───────────────────────────────────────────────
 
 @router.delete("/{contact_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def archive_contact(
     contact_id: int,
+    permanent: bool = Query(False),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required to archive contacts")
+        raise HTTPException(status_code=403, detail="Admin access required to delete contacts")
     contact = db.query(Contact).filter(Contact.id == contact_id).first()
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
+
+    if permanent:
+        # Hard delete: permanently remove from database and free up storage
+        db.query(FollowUp).filter(FollowUp.contact_id == contact_id).delete(synchronize_session=False)
+        db.query(Feedback).filter(Feedback.contact_id == contact_id).delete(synchronize_session=False)
+        db.query(Registration).filter(Registration.contact_id == contact_id).delete(synchronize_session=False)
+        db.query(ContactAttempt).filter(ContactAttempt.contact_id == contact_id).delete(synchronize_session=False)
+        db.query(AuditLog).filter(AuditLog.entity_type == "contact", AuditLog.entity_id == contact_id).delete(synchronize_session=False)
+        db.delete(contact)
+        db.commit()
+        return
+
+    # Soft delete: move to trash
     contact.is_archived = True
     contact.archived_at = datetime.now(timezone.utc)
     contact.archived_by_id = current_user.id
     log_audit(db, entity_type="contact", entity_id=contact_id,
               changed_by_id=current_user.id, action="archived")
     db.commit()
+
+
+@router.post("/{contact_id}/restore", status_code=status.HTTP_200_OK)
+async def restore_contact(
+    contact_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required to restore contacts")
+    contact = db.query(Contact).filter(Contact.id == contact_id).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    contact.is_archived = False
+    contact.archived_at = None
+    contact.archived_by_id = None
+    log_audit(db, entity_type="contact", entity_id=contact_id,
+              changed_by_id=current_user.id, action="restored")
+    db.commit()
+    return {"message": "Contact restored successfully", "id": contact.id}
 
 
 # ─── Contact Attempts ─────────────────────────────────────────────────────────
@@ -755,7 +790,10 @@ async def bulk_action(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required for bulk actions")
 
-    q = db.query(Contact).filter(Contact.id.in_(body.contact_ids), Contact.is_archived == False)
+    if body.action in ["restore", "delete_permanent"]:
+        q = db.query(Contact).filter(Contact.id.in_(body.contact_ids))
+    else:
+        q = db.query(Contact).filter(Contact.id.in_(body.contact_ids), Contact.is_archived == False)
     q = _apply_row_security(q, current_user, db)
     contacts = q.all()
 
@@ -797,6 +835,19 @@ async def bulk_action(
             contact.archived_by_id = current_user.id
             log_audit(db, entity_type="contact", entity_id=contact.id,
                       changed_by_id=current_user.id, action="archived")
+        elif body.action == "restore" and current_user.role == "admin":
+            contact.is_archived = False
+            contact.archived_at = None
+            contact.archived_by_id = None
+            log_audit(db, entity_type="contact", entity_id=contact.id,
+                      changed_by_id=current_user.id, action="restored")
+        elif body.action == "delete_permanent" and current_user.role == "admin":
+            db.query(FollowUp).filter(FollowUp.contact_id == contact.id).delete(synchronize_session=False)
+            db.query(Feedback).filter(Feedback.contact_id == contact.id).delete(synchronize_session=False)
+            db.query(Registration).filter(Registration.contact_id == contact.id).delete(synchronize_session=False)
+            db.query(ContactAttempt).filter(ContactAttempt.contact_id == contact.id).delete(synchronize_session=False)
+            db.query(AuditLog).filter(AuditLog.entity_type == "contact", AuditLog.entity_id == contact.id).delete(synchronize_session=False)
+            db.delete(contact)
 
     db.commit()
     return {"updated": len(contacts)}

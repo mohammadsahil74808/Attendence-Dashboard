@@ -11,7 +11,7 @@ import {
 import {
   Search, X, Download, ChevronUp, ChevronDown,
   ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight, Upload,
-  CheckSquare, Square, Trash2, Plus,
+  CheckSquare, Square, Trash2, Plus, RotateCcw, Trash,
 } from 'lucide-react'
 import { AppLayout, PageHeader } from '../components/layout/AppLayout'
 import { ContactStatusBadge, RegistrationBadge, FollowUpBadge } from '../components/ui/StatusBadges'
@@ -46,6 +46,8 @@ export default function ContactsPage() {
     sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || 'desc',
   }
 
+  const [showTrash, setShowTrash] = useState(false)
+  const [contactToDelete, setContactToDelete] = useState<{ id: number; name: string; permanent: boolean } | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [showBulkConfirm, setShowBulkConfirm] = useState(false)
   const [bulkAction, setBulkAction] = useState<string | null>(null)
@@ -88,7 +90,7 @@ export default function ContactsPage() {
   }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['contacts', filters],
+    queryKey: ['contacts', filters, showTrash],
     queryFn: () => {
       const params = new URLSearchParams()
       if (filters.search) params.set('search', filters.search)
@@ -96,6 +98,7 @@ export default function ContactsPage() {
       if (filters.registration_status) params.set('registration_status', filters.registration_status)
       if (filters.assigned_to_id) params.set('assigned_to_id', String(filters.assigned_to_id))
       if (filters.overdue_only) params.set('overdue_only', 'true')
+      if (showTrash) params.set('is_archived', 'true')
       params.set('page', String(filters.page))
       params.set('page_size', String(PAGE_SIZE))
       params.set('sort_by', filters.sort_by || 'created_at')
@@ -105,13 +108,41 @@ export default function ContactsPage() {
     placeholderData: (prev) => prev,
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: ({ id, permanent }: { id: number; permanent?: boolean }) =>
+      api.delete(`/contacts/${id}${permanent ? '?permanent=true' : ''}`),
+    onSuccess: (_, vars) => {
+      toast(vars.permanent ? 'Contact permanently deleted from database' : 'Contact moved to Trash', 'success')
+      setContactToDelete(null)
+      queryClient.invalidateQueries({ queryKey: ['contacts'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] })
+    },
+    onError: () => toast('Failed to delete contact', 'error'),
+  })
+
+  const restoreMutation = useMutation({
+    mutationFn: (id: number) => api.post(`/contacts/${id}/restore`),
+    onSuccess: () => {
+      toast('Contact restored to active list', 'success')
+      queryClient.invalidateQueries({ queryKey: ['contacts'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] })
+    },
+    onError: () => toast('Failed to restore contact', 'error'),
+  })
+
   const bulkMutation = useMutation({
     mutationFn: (payload: { action: string; contact_ids: number[]; value?: string }) =>
       api.post('/contacts/bulk', payload),
     onSuccess: (_, vars) => {
-      toast(`${vars.contact_ids.length} contacts updated`, 'success')
+      const msg =
+        vars.action === 'archive' ? `${vars.contact_ids.length} contacts moved to Trash`
+        : vars.action === 'restore' ? `${vars.contact_ids.length} contacts restored to active list`
+        : vars.action === 'delete_permanent' ? `${vars.contact_ids.length} contacts permanently deleted from database`
+        : `${vars.contact_ids.length} contacts updated`
+      toast(msg, 'success')
       setSelectedIds(new Set())
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] })
     },
     onError: () => toast('Bulk action failed', 'error'),
   })
@@ -199,6 +230,45 @@ export default function ContactsPage() {
         <span className="font-mono text-xs text-text-muted">{timeAgo(row.original.last_attempt_date)}</span>
       ),
     },
+    ...(isAdmin ? [{
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }: { row: { original: ContactListItem } }) => (
+        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          {!showTrash ? (
+            <button
+              onClick={() => setContactToDelete({ id: row.original.id, name: row.original.name, permanent: false })}
+              className="p-1.5 rounded hover:bg-surface-2 text-text-muted hover:text-rose-400 transition-colors"
+              title="Move to Trash"
+              aria-label={`Delete ${row.original.name}`}
+            >
+              <Trash2 size={14} />
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => restoreMutation.mutate(row.original.id)}
+                disabled={restoreMutation.isPending}
+                className="p-1.5 rounded hover:bg-surface-2 text-text-muted hover:text-emerald-400 transition-colors"
+                title="Restore to Active"
+                aria-label={`Restore ${row.original.name}`}
+              >
+                <RotateCcw size={14} />
+              </button>
+              <button
+                onClick={() => setContactToDelete({ id: row.original.id, name: row.original.name, permanent: true })}
+                className="p-1.5 rounded hover:bg-surface-2 text-text-muted hover:text-rose-500 transition-colors"
+                title="Delete Permanently from Database (Free Space)"
+                aria-label={`Permanently Delete ${row.original.name}`}
+              >
+                <Trash size={14} />
+              </button>
+            </>
+          )}
+        </div>
+      ),
+      size: 90,
+    }] : []),
   ]
 
   const columns: ColumnDef<ContactListItem>[] = isAdmin
@@ -329,9 +399,42 @@ export default function ContactsPage() {
                 </div>
               )}
             </div>
+            {isAdmin && (
+              <button
+                className={`btn-sm flex items-center gap-1.5 transition-colors ${
+                  showTrash
+                    ? 'bg-rose-600 hover:bg-rose-500 text-white font-medium shadow-md'
+                    : 'btn-secondary text-neutral-300 hover:text-neutral-100'
+                }`}
+                onClick={() => {
+                  setShowTrash((v) => !v)
+                  setSelectedIds(new Set())
+                }}
+                title={showTrash ? 'Switch to Active Contacts' : 'View Trash / Deleted Contacts'}
+              >
+                <Trash2 size={14} className={showTrash ? 'text-white' : 'text-rose-400'} />
+                <span>{showTrash ? 'Active Contacts' : 'Trash'}</span>
+              </button>
+            )}
           </>
         }
       />
+
+      {/* ── Trash Mode Banner ────────────────────────────────────────── */}
+      {showTrash && (
+        <div className="px-6 py-2.5 bg-rose-950/40 border-b border-rose-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-rose-300 text-xs sm:text-sm font-medium">
+            <Trash2 size={16} className="text-rose-400 flex-shrink-0" />
+            <span>Trash View — Yahan deleted contacts hain. Aap inhe Restore kar sakte hain ya database se permanently delete karke space free kar sakte hain.</span>
+          </div>
+          <button
+            onClick={() => { setShowTrash(false); setSelectedIds(new Set()) }}
+            className="text-xs text-rose-300 hover:text-white underline font-medium whitespace-nowrap self-start sm:self-auto"
+          >
+            ← Back to Active Contacts
+          </button>
+        </div>
+      )}
 
       {/* ── Filter Bar ───────────────────────────────────────────── */}
       <div className="px-4 sm:px-6 py-3 border-b border-border bg-surface-0 flex flex-col sm:flex-row flex-wrap sm:items-center gap-2.5">
@@ -404,26 +507,49 @@ export default function ContactsPage() {
       {/* ── Bulk Action Bar ───────────────────────────────────────── */}
       {isAdmin && selectedIds.size > 0 && (
         <div
-          className="px-6 py-2 bg-brand-900/30 border-b border-brand-700/40 flex items-center gap-3"
+          className={`px-6 py-2 border-b flex items-center gap-3 ${
+            showTrash ? 'bg-rose-950/40 border-rose-800/40' : 'bg-brand-900/30 border-brand-700/40'
+          }`}
           role="status"
           aria-live="polite"
         >
-          <span className="text-sm text-brand-300 font-medium">{selectedIds.size} selected</span>
+          <span className={`text-sm font-medium ${showTrash ? 'text-rose-300' : 'text-brand-300'}`}>
+            {selectedIds.size} selected
+          </span>
           <div className="flex items-center gap-2 ml-auto">
-            <button
-              className="btn-secondary btn-sm"
-              onClick={() => { setBulkAction('mark_not_interested'); setShowBulkConfirm(true) }}
-            >
-              Mark Not Interested
-            </button>
-            {isAdmin && (
-              <button
-                className="btn-danger btn-sm"
-                onClick={() => { setBulkAction('archive'); setShowBulkConfirm(true) }}
-              >
-                <Trash2 size={13} />
-                Archive
-              </button>
+            {!showTrash ? (
+              <>
+                <button
+                  className="btn-secondary btn-sm"
+                  onClick={() => { setBulkAction('mark_not_interested'); setShowBulkConfirm(true) }}
+                >
+                  Mark Not Interested
+                </button>
+                <button
+                  className="btn-danger btn-sm flex items-center gap-1.5"
+                  onClick={() => { setBulkAction('archive'); setShowBulkConfirm(true) }}
+                >
+                  <Trash2 size={13} />
+                  Move to Trash
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  className="btn-secondary btn-sm flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 border-emerald-500/30"
+                  onClick={() => { setBulkAction('restore'); setShowBulkConfirm(true) }}
+                >
+                  <RotateCcw size={13} />
+                  Restore Selected
+                </button>
+                <button
+                  className="btn-danger btn-sm flex items-center gap-1.5 bg-rose-600 hover:bg-rose-500 text-white"
+                  onClick={() => { setBulkAction('delete_permanent'); setShowBulkConfirm(true) }}
+                >
+                  <Trash size={13} />
+                  Delete Forever (From Database)
+                </button>
+              </>
             )}
             <button
               className="btn-ghost btn-sm"
@@ -548,15 +674,54 @@ export default function ContactsPage() {
         isOpen={showBulkConfirm}
         onClose={() => setShowBulkConfirm(false)}
         onConfirm={() => {
+          if (!bulkAction) return
           bulkMutation.mutate({
-            action: bulkAction === 'archive' ? 'archive' : 'change_status',
+            action: bulkAction,
             contact_ids: Array.from(selectedIds),
-            value: bulkAction === 'archive' ? undefined : 'not_interested',
+            value: bulkAction === 'mark_not_interested' ? 'not_interested' : undefined,
           })
         }}
-        title={bulkAction === 'archive' ? 'Archive Contacts' : 'Mark as Not Interested'}
-        message={`Are you sure you want to ${bulkAction === 'archive' ? 'archive' : 'mark as Not Interested'} ${selectedIds.size} contact(s)?`}
-        isDanger={bulkAction === 'archive'}
+        title={
+          bulkAction === 'archive' ? 'Move to Trash'
+          : bulkAction === 'restore' ? 'Restore Contacts'
+          : bulkAction === 'delete_permanent' ? 'Permanently Delete From Database?'
+          : 'Mark as Not Interested'
+        }
+        message={
+          bulkAction === 'archive'
+            ? `Move ${selectedIds.size} selected contact(s) to Trash? You can restore them anytime.`
+            : bulkAction === 'restore'
+            ? `Restore ${selectedIds.size} selected contact(s) back to the active list?`
+            : bulkAction === 'delete_permanent'
+            ? `⚠️ DANGER: Permanently delete ${selectedIds.size} selected contact(s) from Supabase? This will free up database space and CANNOT be recovered.`
+            : `Are you sure you want to mark ${selectedIds.size} contact(s) as Not Interested?`
+        }
+        confirmLabel={
+          bulkAction === 'delete_permanent' ? 'Delete Forever'
+          : bulkAction === 'restore' ? 'Restore'
+          : bulkAction === 'archive' ? 'Move to Trash'
+          : 'Confirm'
+        }
+        isDanger={bulkAction === 'archive' || bulkAction === 'delete_permanent'}
+      />
+
+      {/* Single contact delete / permanent delete dialog */}
+      <ConfirmDialog
+        isOpen={!!contactToDelete}
+        onClose={() => setContactToDelete(null)}
+        onConfirm={() => {
+          if (contactToDelete) {
+            deleteMutation.mutate({ id: contactToDelete.id, permanent: contactToDelete.permanent })
+          }
+        }}
+        title={contactToDelete?.permanent ? 'Permanently Delete from Database?' : 'Move to Trash'}
+        message={
+          contactToDelete?.permanent
+            ? `Are you sure you want to permanently delete "${contactToDelete?.name}" from Supabase? This will free up database space and cannot be undone.`
+            : `Move "${contactToDelete?.name}" to Trash? You can view or restore it anytime from the Trash tab.`
+        }
+        confirmLabel={contactToDelete?.permanent ? 'Delete Forever' : 'Move to Trash'}
+        isDanger={true}
       />
 
       <Modal
