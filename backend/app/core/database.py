@@ -3,6 +3,8 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from app.core.config import settings, BASE_DIR
 
 db_url = settings.DATABASE_URL
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
 if db_url.startswith("sqlite:///./"):
     rel_path = db_url[len("sqlite:///./"):]
     db_url = f"sqlite:///{BASE_DIR / rel_path}"
