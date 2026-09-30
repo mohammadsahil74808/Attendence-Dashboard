@@ -206,11 +206,14 @@ body {
 
   /* ─ Modal ───────────────────────────────────────────────────────────────── */
   .modal-overlay {
-    @apply fixed inset-0 bg-black/60 z-40 animate-fade-in flex items-center justify-center p-4;
+    @apply fixed inset-0 bg-black/70 backdrop-blur-sm z-50 animate-fade-in flex items-center justify-center p-3 sm:p-6 overflow-y-auto;
   }
   .modal-box {
     @apply bg-surface-1 rounded-xl shadow-modal border border-border w-full max-w-lg
-           animate-slide-up;
+           flex flex-col max-h-[90vh] my-auto animate-slide-up overflow-hidden;
+  }
+  .modal-body {
+    @apply px-5 py-4 overflow-y-auto flex-1 min-h-0 overscroll-contain;
   }
 
   /* ─ Metric Card ─────────────────────────────────────────────────────────── */

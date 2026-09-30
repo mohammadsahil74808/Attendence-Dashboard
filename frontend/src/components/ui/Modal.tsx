@@ -75,8 +75,8 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', footer }:
         aria-modal="true"
         aria-labelledby="modal-title"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        {/* Header - pinned at top */}
+        <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-border bg-surface-1 rounded-t-xl sticky top-0 z-10">
           <h2 id="modal-title" className="text-base font-semibold text-text-primary">
             {title}
           </h2>
@@ -89,12 +89,12 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', footer }:
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-5 py-4">{children}</div>
+        {/* Body - scrolls smoothly inside modal */}
+        <div className="modal-body">{children}</div>
 
-        {/* Footer */}
+        {/* Footer - pinned at bottom if provided */}
         {footer && (
-          <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-border">
+          <div className="shrink-0 flex items-center justify-end gap-2 px-5 py-3.5 border-t border-border bg-surface-1 rounded-b-xl sticky bottom-0 z-10">
             {footer}
           </div>
         )}
