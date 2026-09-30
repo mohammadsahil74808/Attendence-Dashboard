@@ -2,13 +2,14 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Upload, CalendarClock,
   FileBarChart, Settings, LogOut, UserCog,
-  Activity, X,
+  Activity, X, GraduationCap,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { cn } from '../../lib/utils'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/colleges', icon: GraduationCap, label: 'Colleges' },
   { to: '/contacts', icon: Users, label: 'Contacts' },
   { to: '/follow-ups', icon: CalendarClock, label: 'Follow-Ups' },
   { to: '/reports', icon: FileBarChart, label: 'Reports & Export' },

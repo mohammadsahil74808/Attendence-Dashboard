@@ -22,9 +22,12 @@ def _to_utc(dt: Optional[datetime]) -> Optional[datetime]:
     return dt
 
 
+from sqlalchemy import or_
+from app.models import Registration, RegistrationStatus, College
+
 @router.get("/", response_model=List[FollowUpResponse])
 async def list_followups(
-    view: str = Query("all", pattern="^(all|overdue|due_today|upcoming|completed)$"),
+    view: str = Query("all", pattern="^(all|overdue|due_today|upcoming|completed|registered)$"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -55,10 +58,37 @@ async def list_followups(
         )
         db.add(fu)
         has_new = True
+
+    # Ensure any registered contacts have at least one follow-up record for visibility
+    unlinked_registered = (
+        db.query(Contact)
+        .filter(
+            Contact.is_archived == False,
+            or_(
+                Contact.contact_status == ContactStatus.registered,
+                Contact.registrations.any(Registration.status == RegistrationStatus.registered),
+            ),
+            ~Contact.follow_ups.any(),
+        )
+        .all()
+    )
+    for c in unlinked_registered:
+        fu = FollowUp(
+            contact_id=c.id,
+            followup_date=c.updated_at or c.created_at or datetime.now(timezone.utc),
+            reason="Registered College / Contact",
+            assigned_to_id=c.assigned_to_id or current_user.id,
+            status=FollowUpStatus.completed,
+            priority="normal",
+            created_from_type="manual",
+        )
+        db.add(fu)
+        has_new = True
+
     if has_new:
         db.commit()
 
-    query = db.query(FollowUp)
+    query = db.query(FollowUp).join(Contact, FollowUp.contact_id == Contact.id).filter(Contact.is_archived == False)
 
     if view == "overdue":
         query = query.filter(
@@ -78,10 +108,18 @@ async def list_followups(
         )
     elif view == "completed":
         query = query.filter(FollowUp.status == FollowUpStatus.completed)
+    elif view == "registered":
+        query = query.filter(
+            or_(
+                Contact.contact_status == ContactStatus.registered,
+                Contact.registrations.any(Registration.status == RegistrationStatus.registered),
+                Contact.college.has(College.is_registered == True),
+            )
+        )
     else:
         query = query.filter(FollowUp.status == FollowUpStatus.scheduled)
 
-    fus = query.order_by(FollowUp.followup_date.asc()).all()
+    fus = query.order_by(FollowUp.followup_date.desc() if view == "registered" else FollowUp.followup_date.asc()).all()
     result = []
     for fu in fus:
         r = FollowUpResponse.model_validate(fu)
@@ -89,6 +127,9 @@ async def list_followups(
         r.contact_name = fu.contact.name if fu.contact else None
         r.contact_phone = fu.contact.phone if fu.contact else None
         r.contact_organization = fu.contact.organization if fu.contact else None
+        r.contact_status = fu.contact.contact_status.value if fu.contact and fu.contact.contact_status else None
+        reg = fu.contact.registrations[-1] if (fu.contact and fu.contact.registrations) else None
+        r.registration_status = reg.status.value if reg else "not_registered"
         result.append(r)
     return result
 

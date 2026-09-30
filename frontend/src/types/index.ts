@@ -42,6 +42,7 @@ export interface ContactListItem {
   phone: string | null
   email: string | null
   contact_status: ContactStatus
+  college_id?: number | null
   assigned_to_id: number | null
   assigned_to_name: string | null
   registration_status: RegistrationStatus | null
@@ -63,6 +64,38 @@ export interface Contact extends ContactListItem {
   custom_fields: Record<string, unknown> | null
   is_archived: boolean
   updated_at: string
+}
+
+export interface College {
+  id: number
+  name: string
+  code: string | null
+  university: string | null
+  city: string | null
+  state: string | null
+  address: string | null
+  website: string | null
+  email: string | null
+  phone: string | null
+  contact_person: string | null
+  contact_person_designation: string | null
+  status: 'active' | 'registered' | 'prospective' | 'inactive'
+  is_registered: boolean
+  notes: string | null
+  created_by_id: number | null
+  created_by?: User | null
+  contacts_count: number
+  registered_contacts_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface PaginatedColleges {
+  items: College[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
 }
 
 export interface PaginatedContacts {
@@ -132,6 +165,8 @@ export interface FollowUp {
   contact_name: string | null
   contact_phone?: string | null
   contact_organization?: string | null
+  contact_status?: string | null
+  registration_status?: string | null
 }
 
 export interface DashboardSummary {
@@ -202,6 +237,7 @@ export interface ContactFilters {
   registration_status?: RegistrationStatus
   feedback_status?: FeedbackStatus
   assigned_to_id?: number
+  college_id?: number
   organization?: string
   import_batch_id?: number
   overdue_only?: boolean

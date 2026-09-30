@@ -5,7 +5,7 @@ import api from '../lib/api'
 interface AuthContextType {
   user: User | null
   token: string | null
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string, loginAs?: 'admin' | 'member') => Promise<void>
   logout: () => void
   isAdmin: boolean
   isLoading: boolean
@@ -23,10 +23,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
   const [isLoading, setIsLoading] = useState(false)
 
-  async function login(email: string, password: string) {
+  async function login(email: string, password: string, loginAs?: 'admin' | 'member') {
     setIsLoading(true)
     try {
-      const { data } = await api.post('/auth/login', { email, password })
+      const payload: Record<string, any> = { email, password }
+      if (loginAs) payload.login_as = loginAs
+      const { data } = await api.post('/auth/login', payload)
       setToken(data.access_token)
       setUser(data.user)
       localStorage.setItem('fms_token', data.access_token)

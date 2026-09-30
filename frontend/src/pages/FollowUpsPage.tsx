@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Calendar, Clock, CheckCircle, Phone, ArrowUpRight,
-  RefreshCw, AlertTriangle
+  RefreshCw, AlertTriangle, GraduationCap
 } from 'lucide-react'
 import { AppLayout, PageHeader } from '../components/layout/AppLayout'
 import { Modal } from '../components/ui/Modal'
@@ -144,6 +144,18 @@ export default function FollowUpsPage() {
             <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
             Completed
           </button>
+
+          <button
+            onClick={() => setView('registered')}
+            className={`px-3 sm:px-4 py-2 sm:py-2.5 text-xs font-medium border-b-2 transition-colors flex items-center gap-1.5 flex-shrink-0 whitespace-nowrap ${
+              activeView === 'registered'
+                ? 'border-emerald-500 text-emerald-400 font-semibold'
+                : 'border-transparent text-neutral-400 hover:text-neutral-200'
+            }`}
+          >
+            <GraduationCap className="w-3.5 h-3.5 text-emerald-400" />
+            Registered
+          </button>
         </div>
 
         {/* Content list */}
@@ -187,6 +199,12 @@ export default function FollowUpsPage() {
                     {fu.is_overdue && (
                       <span className="text-2xs font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
                         OVERDUE
+                      </span>
+                    )}
+
+                    {(fu.contact_status === 'registered' || fu.registration_status === 'registered') && (
+                      <span className="text-2xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 inline-flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> REGISTERED
                       </span>
                     )}
 

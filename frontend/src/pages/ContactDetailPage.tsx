@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Phone, Mail, MessageSquare, Calendar,
   Clock, CheckCircle, AlertCircle, Plus, Edit, Shield,
   ExternalLink, Building2, MapPin, Tag, Trash2, Trash, RotateCcw,
+  GraduationCap,
 } from 'lucide-react'
 import { AppLayout } from '../components/layout/AppLayout'
 import { ContactStatusBadge, RegistrationBadge } from '../components/ui/StatusBadges'
@@ -23,6 +24,8 @@ import type {
   AuditLog,
   ContactStatus,
   RegistrationStatus,
+  College,
+  User,
 } from '../types'
 import {
   CONTACT_STATUS_LABELS,
@@ -84,9 +87,27 @@ export default function ContactDetailPage() {
     enabled: !!contactId,
   })
 
+  // Fetch colleges list for dropdown
+  const { data: colleges = [] } = useQuery<College[]>({
+    queryKey: ['colleges-all'],
+    queryFn: async () => {
+      const res = await api.get('/colleges/all')
+      return res.data
+    },
+  })
 
+  // Fetch users for assignment dropdown
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ['users-list'],
+    queryFn: async () => {
+      const res = await api.get('/users/')
+      return res.data
+    },
+    enabled: isAdmin,
+  })
 
-  // Fetch attempts
+  const [editCollegeId, setEditCollegeId] = useState<number | null>(null)
+  const [editOrgName, setEditOrgName] = useState<string>('')
   const { data: attempts = [] } = useQuery<ContactAttempt[]>({
     queryKey: ['attempts', contactId],
     queryFn: async () => {
@@ -252,36 +273,36 @@ export default function ContactDetailPage() {
             Back to Contacts
           </button>
 
-          {isAdmin ? (
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => setAttemptModalOpen(true)}
-                className="btn-primary text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                Log Attempt
-              </button>
-              <button
-                onClick={() => setFeedbackModalOpen(true)}
-                className="btn-secondary text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                Feedback
-              </button>
-              <button
-                onClick={() => setRegistrationModalOpen(true)}
-                className="btn-secondary text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
-              >
-                <CheckCircle className="w-3.5 h-3.5" />
-                Registration
-              </button>
-              <button
-                onClick={() => setFollowupModalOpen(true)}
-                className="btn-secondary text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                Follow-Up
-              </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setAttemptModalOpen(true)}
+              className="btn-primary text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
+            >
+              <Phone className="w-3.5 h-3.5" />
+              Log Attempt
+            </button>
+            <button
+              onClick={() => setFeedbackModalOpen(true)}
+              className="btn-secondary text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Feedback
+            </button>
+            <button
+              onClick={() => setRegistrationModalOpen(true)}
+              className="btn-secondary text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
+            >
+              <CheckCircle className="w-3.5 h-3.5" />
+              Registration
+            </button>
+            <button
+              onClick={() => setFollowupModalOpen(true)}
+              className="btn-secondary text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              Follow-Up
+            </button>
+            {isAdmin && (
               <button
                 onClick={() => setDeleteConfirmOpen(true)}
                 className="btn-danger text-xs sm:text-sm inline-flex items-center gap-1.5 py-1.5 px-3"
@@ -290,12 +311,8 @@ export default function ContactDetailPage() {
                 <Trash2 className="w-3.5 h-3.5" />
                 Delete
               </button>
-            </div>
-          ) : (
-            <span className="px-3 py-1.5 rounded-full bg-neutral-800 text-neutral-400 text-xs font-medium border border-neutral-700 w-fit">
-              Viewer Mode (Read-Only)
-            </span>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Trash Status Banner */}
@@ -362,6 +379,10 @@ export default function ContactDetailPage() {
                   Source: {contact.source}
                 </span>
               )}
+              <span className="flex items-center gap-1.5 text-neutral-300">
+                <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                Assigned: <strong className="text-neutral-100">{contact.assigned_to?.name || 'Unassigned'}</strong>
+              </span>
             </div>
           </div>
 
@@ -1247,16 +1268,21 @@ export default function ContactDetailPage() {
             onSubmit={(e) => {
               e.preventDefault()
               const fd = new FormData(e.currentTarget)
-              updateContactMutation.mutate({
+              const payload: any = {
                 name: fd.get('name') as string,
-                organization: (fd.get('organization') as string) || null,
+                organization: editOrgName !== '' ? editOrgName : (contact.organization || null),
+                college_id: editCollegeId !== null ? editCollegeId : (contact.college_id || null),
                 designation: (fd.get('designation') as string) || null,
                 phone: (fd.get('phone') as string) || null,
                 whatsapp: (fd.get('whatsapp') as string) || null,
                 email: (fd.get('email') as string) || null,
                 city: (fd.get('city') as string) || null,
                 notes: (fd.get('notes') as string) || null,
-              })
+              }
+              if (isAdmin && fd.get('assigned_to_id') !== null) {
+                payload.assigned_to_id = fd.get('assigned_to_id') ? Number(fd.get('assigned_to_id')) : null
+              }
+              updateContactMutation.mutate(payload)
               setEditInfoModalOpen(false)
             }}
             className="space-y-4 text-xs"
@@ -1266,15 +1292,53 @@ export default function ContactDetailPage() {
               <input type="text" name="name" defaultValue={contact.name} required className="input-text w-full" />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-neutral-300 block mb-1 font-medium">Organization / College</label>
-                <input type="text" name="organization" defaultValue={contact.organization || ''} className="input-text w-full" />
+            {/* College Selector */}
+            <div className="space-y-1.5 p-3 rounded-lg border border-neutral-800 bg-neutral-900/40">
+              <div className="flex items-center justify-between">
+                <label className="text-neutral-300 font-medium flex items-center gap-1.5">
+                  <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+                  College / Institution
+                </label>
+                <Link
+                  to="/colleges"
+                  target="_blank"
+                  className="text-2xs text-indigo-400 hover:text-indigo-300 underline font-medium"
+                >
+                  View Colleges
+                </Link>
               </div>
-              <div>
-                <label className="text-neutral-300 block mb-1 font-medium">Designation</label>
-                <input type="text" name="designation" defaultValue={contact.designation || ''} className="input-text w-full" />
-              </div>
+              <select
+                className="input-select w-full"
+                value={editCollegeId ?? (contact.college_id || '')}
+                onChange={(e) => {
+                  const cid = e.target.value ? Number(e.target.value) : null
+                  setEditCollegeId(cid)
+                  const found = colleges.find((c) => c.id === cid)
+                  if (found) {
+                    setEditOrgName(found.name)
+                  }
+                }}
+              >
+                <option value="">-- Select College (or enter custom below) --</option>
+                {colleges.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.city ? `(${c.city})` : ''} {c.is_registered ? '★ Registered' : ''}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                name="organization"
+                value={editOrgName !== '' ? editOrgName : (contact.organization || '')}
+                onChange={(e) => setEditOrgName(e.target.value)}
+                placeholder="Or type custom college / org"
+                className="input-text w-full"
+              />
+            </div>
+
+            <div>
+              <label className="text-neutral-300 block mb-1 font-medium">Designation</label>
+              <input type="text" name="designation" defaultValue={contact.designation || ''} className="input-text w-full" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -1297,6 +1361,29 @@ export default function ContactDetailPage() {
                 <label className="text-neutral-300 block mb-1 font-medium">City</label>
                 <input type="text" name="city" defaultValue={contact.city || ''} className="input-text w-full" />
               </div>
+            </div>
+
+            {/* Assigned To Field */}
+            <div>
+              <label className="text-neutral-300 block mb-1 font-medium">Assigned To</label>
+              {isAdmin ? (
+                <select
+                  name="assigned_to_id"
+                  className="input-select w-full"
+                  defaultValue={contact.assigned_to_id || ''}
+                >
+                  <option value="">Unassigned</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role}) {u.id === contact.assigned_to_id ? '(Assigned)' : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="p-2.5 rounded border border-neutral-800 bg-neutral-900/60 text-xs text-neutral-300">
+                  Assigned to: <strong className="text-neutral-100">{contact.assigned_to?.name || 'Unassigned'}</strong> (Admin only can reassign)
+                </div>
+              )}
             </div>
 
             <div>

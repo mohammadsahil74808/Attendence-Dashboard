@@ -6,6 +6,7 @@ import { ToastProvider } from './contexts/ToastContext'
 // Pages
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
+import CollegesPage from './pages/CollegesPage'
 import ContactsPage from './pages/ContactsPage'
 import ContactDetailPage from './pages/ContactDetailPage'
 import ImportPage from './pages/ImportPage'
@@ -38,6 +39,7 @@ export default function App() {
               {/* Protected App Routes */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/colleges" element={<CollegesPage />} />
               <Route path="/contacts" element={<ContactsPage />} />
               <Route path="/contacts/import" element={<ImportPage />} />
               <Route path="/contacts/:id" element={<ContactDetailPage />} />

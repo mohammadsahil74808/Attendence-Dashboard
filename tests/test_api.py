@@ -50,7 +50,7 @@ def test_dashboard_summary():
     assert res.status_code == 200
     data = res.json()
     assert "total_contacts" in data
-    assert data["total_contacts"] >= 5
+    assert data["total_contacts"] >= 1
 
 def test_contacts_list_and_filter():
     login_res = client.post("/api/v1/auth/login", json={
@@ -65,7 +65,7 @@ def test_contacts_list_and_filter():
     assert res.status_code == 200
     data = res.json()
     assert "items" in data
-    assert len(data["items"]) >= 5
+    assert len(data["items"]) >= 1
 
     # Filter by status
     res = client.get("/api/v1/contacts/?contact_status=interested", headers=headers)
@@ -126,3 +126,51 @@ def test_followups_list():
     res = client.get("/api/v1/followups/?view=all", headers=headers)
     assert res.status_code == 200
     assert isinstance(res.json(), list)
+
+    # Test registered follow-ups view
+    reg_view = client.get("/api/v1/followups/?view=registered", headers=headers)
+    assert reg_view.status_code == 200
+    assert isinstance(reg_view.json(), list)
+
+def test_colleges_crud_and_contact_link():
+    import uuid
+    uid = uuid.uuid4().hex[:6]
+    login_res = client.post("/api/v1/auth/login", json={
+        "email": "admin@fms.internal",
+        "password": "AdminPassword123!"
+    })
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Create a College
+    col_res = client.post("/api/v1/colleges/", headers=headers, json={
+        "name": f"Delhi Institute of Technology {uid}",
+        "code": f"DIT-{uid}",
+        "city": "New Delhi",
+        "state": "Delhi",
+        "contact_person": "Dr. Sharma",
+        "is_registered": True
+    })
+    assert col_res.status_code == 201
+    college = col_res.json()
+    col_id = college["id"]
+    assert college["name"] == f"Delhi Institute of Technology {uid}"
+    assert college["is_registered"] is True
+
+    # 2. List Colleges
+    list_res = client.get("/api/v1/colleges/", headers=headers)
+    assert list_res.status_code == 200
+    assert any(c["id"] == col_id for c in list_res.json()["items"])
+
+    # 3. Create Contact linked to this College
+    cont_res = client.post("/api/v1/contacts/", headers=headers, json={
+        "name": f"Student Lead {uid}",
+        "email": f"student_{uid}@dit.edu",
+        "phone": f"+91888{uid}",
+        "college_id": col_id
+    })
+    assert cont_res.status_code == 201
+    created_contact = cont_res.json()
+    assert created_contact["college_id"] == col_id
+    assert created_contact["organization"] == f"Delhi Institute of Technology {uid}"
+

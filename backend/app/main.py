@@ -7,13 +7,26 @@ from app.core.config import settings
 from app.api.v1 import api_router
 from app.core.database import engine, Base
 
+import sqlalchemy
+
 # Create all tables on startup (use Alembic migrations in production)
 Base.metadata.create_all(bind=engine)
+
+# Auto-migrate contacts.college_id if using SQLite and column missing
+try:
+    with engine.connect() as conn:
+        res = conn.execute(sqlalchemy.text("PRAGMA table_info(contacts)"))
+        cols = [r[1] for r in res.fetchall()]
+        if cols and "college_id" not in cols:
+            conn.execute(sqlalchemy.text("ALTER TABLE contacts ADD COLUMN college_id INTEGER"))
+            conn.commit()
+except Exception:
+    pass
 
 
 def ensure_default_users():
     from app.core.database import SessionLocal
-    from app.models import User, UserRole
+    from app.models import User, UserRole, College, Contact, ContactStatus
     from app.core.security import get_password_hash
     db = SessionLocal()
     try:
@@ -43,16 +56,31 @@ def ensure_default_users():
             )
             db.add(admin)
 
+        # Seed default college if none exist
+        default_college = db.query(College).first()
+        if not default_college:
+            default_college = College(
+                name="Lingayas Vidyapeeth",
+                code="LV-01",
+                city="Faridabad",
+                state="Haryana",
+                status="registered",
+                is_registered=True,
+                notes="Primary partner institution",
+            )
+            db.add(default_college)
+            db.flush()
+
         # Seed default contact if database is fresh/empty
-        from app.models import Contact, ContactStatus
         if db.query(Contact).filter(Contact.is_archived == False).count() == 0:
             sample_contact = Contact(
                 name="Sahil Ansari",
-                organization="lingayas vidyapeeth",
-                designation="faridabad",
+                organization="Lingayas Vidyapeeth",
+                designation="Faridabad",
                 phone="9289345249",
                 email="sahilansari74808@gmail.com",
                 contact_status=ContactStatus.interested,
+                college_id=default_college.id if default_college else None,
                 is_archived=False,
             )
             db.add(sample_contact)

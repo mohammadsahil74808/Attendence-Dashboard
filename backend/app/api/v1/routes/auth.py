@@ -40,13 +40,21 @@ async def login(form_data: LoginRequest, db: Session = Depends(get_db)):
                 _, auth_email, encrypted_pw = row
                 if encrypted_pw and verify_password(form_data.password, encrypted_pw):
                     is_valid = True
+                    # Determine role for newly synced user
+                    if form_data.login_as == "member":
+                        target_role = UserRole.member
+                    elif form_data.login_as == "admin" or "admin" in email_clean or "sahil" in email_clean:
+                        target_role = UserRole.admin
+                    else:
+                        target_role = UserRole.member
+
                     if not user:
-                        name_val = "Sahil Ansari" if "sahil" in email_clean else email_clean.split("@")[0]
+                        name_val = "Sahil Ansari" if "sahil" in email_clean else email_clean.split("@")[0].replace(".", " ").title()
                         user = User(
                             name=name_val,
                             email=email_clean,
                             password_hash=encrypted_pw,
-                            role=UserRole.admin,
+                            role=target_role,
                             is_active=True,
                         )
                         db.add(user)
@@ -54,7 +62,8 @@ async def login(form_data: LoginRequest, db: Session = Depends(get_db)):
                         db.refresh(user)
                     else:
                         user.password_hash = encrypted_pw
-                        user.role = UserRole.admin
+                        if form_data.login_as and user.email != "sahilansari74808@gmail.com":
+                            user.role = target_role
                         user.is_active = True
                         db.commit()
         except Exception:
@@ -65,6 +74,19 @@ async def login(form_data: LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
         )
+
+    # Role enforcement if login_as tab was explicitly selected
+    if form_data.login_as == "admin" and user.role != UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account is registered as a Team Member. Please switch to the Member Login tab.",
+        )
+    if form_data.login_as == "member" and user.role != UserRole.member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account is registered as an Administrator. Please switch to the Admin Login tab.",
+        )
+
     token = create_access_token(data={"sub": str(user.id)})
     return TokenResponse(
         access_token=token,

@@ -13,6 +13,7 @@ import re
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    login_as: Optional[str] = None
 
 
 class TokenResponse(BaseModel):
@@ -68,6 +69,7 @@ class ContactCreate(BaseModel):
     city: Optional[str] = None
     source: Optional[str] = None
     notes: Optional[str] = None
+    college_id: Optional[int] = None
     assigned_to_id: Optional[int] = None
     contact_status: Optional[str] = "not_contacted"
     custom_fields: Optional[Dict[str, Any]] = None
@@ -92,6 +94,7 @@ class ContactUpdate(BaseModel):
     city: Optional[str] = None
     source: Optional[str] = None
     notes: Optional[str] = None
+    college_id: Optional[int] = None
     assigned_to_id: Optional[int] = None
     contact_status: Optional[str] = None
     custom_fields: Optional[Dict[str, Any]] = None
@@ -124,6 +127,7 @@ class ContactResponse(BaseModel):
     source: Optional[str]
     notes: Optional[str]
     contact_status: str
+    college_id: Optional[int] = None
     assigned_to_id: Optional[int]
     assigned_to: Optional[UserResponse]
     import_batch_id: Optional[int]
@@ -148,6 +152,7 @@ class ContactListItem(BaseModel):
     phone: Optional[str]
     email: Optional[str]
     contact_status: str
+    college_id: Optional[int] = None
     assigned_to_id: Optional[int]
     assigned_to_name: Optional[str] = None
     registration_status: Optional[str] = None
@@ -162,6 +167,73 @@ class ContactListItem(BaseModel):
 
 class PaginatedContacts(BaseModel):
     items: List[ContactListItem]
+    total: int
+
+
+# ─── Colleges ─────────────────────────────────────────────────────────────────
+
+class CollegeCreate(BaseModel):
+    name: str
+    code: Optional[str] = None
+    university: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    address: Optional[str] = None
+    website: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    contact_person: Optional[str] = None
+    contact_person_designation: Optional[str] = None
+    status: Optional[str] = "active"
+    is_registered: Optional[bool] = False
+    notes: Optional[str] = None
+
+
+class CollegeUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    university: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    address: Optional[str] = None
+    website: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    contact_person: Optional[str] = None
+    contact_person_designation: Optional[str] = None
+    status: Optional[str] = None
+    is_registered: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class CollegeResponse(BaseModel):
+    id: int
+    name: str
+    code: Optional[str] = None
+    university: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    address: Optional[str] = None
+    website: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    contact_person: Optional[str] = None
+    contact_person_designation: Optional[str] = None
+    status: str
+    is_registered: bool = False
+    notes: Optional[str] = None
+    created_by_id: Optional[int] = None
+    created_by: Optional[UserResponse] = None
+    contacts_count: int = 0
+    registered_contacts_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PaginatedColleges(BaseModel):
+    items: List[CollegeResponse]
     total: int
     page: int
     page_size: int
@@ -299,6 +371,8 @@ class FollowUpResponse(BaseModel):
     contact_name: Optional[str] = None  # for follow-up list view
     contact_phone: Optional[str] = None
     contact_organization: Optional[str] = None
+    contact_status: Optional[str] = None
+    registration_status: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

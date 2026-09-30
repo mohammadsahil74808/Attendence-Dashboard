@@ -143,6 +143,7 @@ class Contact(Base):
     )
 
     # Foreign keys
+    college_id = Column(Integer, ForeignKey("colleges.id"), nullable=True, index=True)
     assigned_to_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     import_batch_id = Column(Integer, ForeignKey("import_batches.id"), nullable=True)
 
@@ -155,6 +156,7 @@ class Contact(Base):
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
     # Relationships
+    college = relationship("College", back_populates="contacts")
     assigned_to = relationship("User", back_populates="assigned_contacts", foreign_keys=[assigned_to_id])
     import_batch = relationship("ImportBatch", back_populates="contacts")
     contact_attempts = relationship("ContactAttempt", back_populates="contact", order_by="ContactAttempt.occurred_at")
@@ -162,6 +164,35 @@ class Contact(Base):
     registrations = relationship("Registration", back_populates="contact", order_by="Registration.registration_date")
     follow_ups = relationship("FollowUp", back_populates="contact", order_by="FollowUp.followup_date")
     audit_logs = relationship("AuditLog", primaryjoin="and_(AuditLog.entity_type=='contact', foreign(AuditLog.entity_id)==Contact.id)", viewonly=True)
+
+
+class College(Base):
+    __tablename__ = "colleges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), unique=True, nullable=False, index=True)
+    code = Column(String(50), nullable=True, index=True)
+    university = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=True, index=True)
+    state = Column(String(100), nullable=True)
+    address = Column(Text, nullable=True)
+    website = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)
+    phone = Column(String(50), nullable=True)
+    contact_person = Column(String(255), nullable=True)
+    contact_person_designation = Column(String(100), nullable=True)
+    status = Column(String(50), default="active", nullable=False)
+    is_registered = Column(Boolean, default=False, nullable=False)
+    notes = Column(Text, nullable=True)
+
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    is_archived = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    # Relationships
+    created_by = relationship("User")
+    contacts = relationship("Contact", back_populates="college")
 
 
 class ContactAttempt(Base):

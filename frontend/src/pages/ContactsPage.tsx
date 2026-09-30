@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import {
   useReactTable,
   getCoreRowModel,
@@ -11,7 +11,7 @@ import {
 import {
   Search, X, Download, ChevronUp, ChevronDown,
   ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight, Upload,
-  CheckSquare, Square, Trash2, Plus, RotateCcw, Trash,
+  CheckSquare, Square, Trash2, Plus, RotateCcw, Trash, GraduationCap,
 } from 'lucide-react'
 import { AppLayout, PageHeader } from '../components/layout/AppLayout'
 import { ContactStatusBadge, RegistrationBadge, FollowUpBadge } from '../components/ui/StatusBadges'
@@ -21,13 +21,13 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import api from '../lib/api'
 import { timeAgo } from '../lib/utils'
-import type { ContactListItem, ContactFilters, ContactStatus, RegistrationStatus } from '../types'
+import type { ContactListItem, ContactFilters, ContactStatus, RegistrationStatus, College, User } from '../types'
 import { CONTACT_STATUS_LABELS, REGISTRATION_STATUS_LABELS } from '../types'
 
 const PAGE_SIZE = 50
 
 export default function ContactsPage() {
-  const { isAdmin } = useAuth()
+  const { user, isAdmin } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -39,6 +39,8 @@ export default function ContactsPage() {
     contact_status: (searchParams.get('contact_status') as ContactStatus) || undefined,
     registration_status: (searchParams.get('registration_status') as RegistrationStatus) || undefined,
     assigned_to_id: searchParams.get('assigned_to_id') ? Number(searchParams.get('assigned_to_id')) : undefined,
+    college_id: searchParams.get('college_id') ? Number(searchParams.get('college_id')) : undefined,
+    organization: searchParams.get('organization') || undefined,
     overdue_only: searchParams.get('overdue_only') === 'true',
     page: Number(searchParams.get('page') || '1'),
     page_size: PAGE_SIZE,
@@ -55,17 +57,57 @@ export default function ContactsPage() {
   const [createStatus, setCreateStatus] = useState('not_contacted')
   const [showExportMenu, setShowExportMenu] = useState(false)
 
+  // College & user prefill states
+  const [selectedCollegeId, setSelectedCollegeId] = useState<number | null>(null)
+  const [selectedOrgName, setSelectedOrgName] = useState<string>('')
+  const [cityVal, setCityVal] = useState<string>('')
 
+  // Fetch all colleges for dropdown
+  const { data: colleges = [] } = useQuery<College[]>({
+    queryKey: ['colleges-all'],
+    queryFn: async () => {
+      const res = await api.get('/colleges/all')
+      return res.data
+    },
+  })
+
+  // Fetch all users for assignment selection
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ['users-list'],
+    queryFn: async () => {
+      const res = await api.get('/users/')
+      return res.data
+    },
+  })
+
+  // Auto-open modal if navigated from Colleges with ?add=true
+  useEffect(() => {
+    if (searchParams.get('add') === 'true') {
+      setCreateModalOpen(true)
+      if (searchParams.get('college_id')) {
+        const cid = Number(searchParams.get('college_id'))
+        setSelectedCollegeId(cid)
+      }
+      if (searchParams.get('college_name')) {
+        setSelectedOrgName(searchParams.get('college_name') || '')
+      }
+    }
+  }, [searchParams])
 
   const createContactMutation = useMutation({
     mutationFn: (data: any) => api.post('/contacts/', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts'] })
+      queryClient.invalidateQueries({ queryKey: ['colleges'] })
+      queryClient.invalidateQueries({ queryKey: ['colleges-all'] })
       queryClient.invalidateQueries({ queryKey: ['followups-list'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] })
       toast.show('Contact created successfully', 'success')
       setCreateModalOpen(false)
       setCreateStatus('not_contacted')
+      setSelectedCollegeId(null)
+      setSelectedOrgName('')
+      setCityVal('')
     },
     onError: (err: any) => {
       toast.show(err.response?.data?.detail || 'Failed to create contact', 'error')
@@ -90,6 +132,8 @@ export default function ContactsPage() {
       if (filters.contact_status) params.set('contact_status', filters.contact_status)
       if (filters.registration_status) params.set('registration_status', filters.registration_status)
       if (filters.assigned_to_id) params.set('assigned_to_id', String(filters.assigned_to_id))
+      if (filters.college_id) params.set('college_id', String(filters.college_id))
+      if (filters.organization) params.set('organization', filters.organization)
       if (filters.overdue_only) params.set('overdue_only', 'true')
       if (showTrash) params.set('is_archived', 'true')
       params.set('page', String(filters.page))
@@ -216,6 +260,16 @@ export default function ContactsPage() {
         <span className="font-mono text-xs text-text-muted">{timeAgo(row.original.last_attempt_date)}</span>
       ),
     },
+    {
+      accessorKey: 'assigned_to_name',
+      header: 'Assigned To',
+      cell: ({ row }) => (
+        <span className="text-xs text-text-secondary inline-flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+          {row.original.assigned_to_name || <span className="text-neutral-500 italic">Unassigned</span>}
+        </span>
+      ),
+    },
     ...(isAdmin ? [{
       id: 'actions',
       header: 'Actions',
@@ -335,11 +389,6 @@ export default function ContactsPage() {
         subtitle={data ? `${data.total.toLocaleString()} contacts` : undefined}
         actions={
           <>
-            {!isAdmin && (
-              <span className="px-2.5 py-1 text-xs rounded-full bg-neutral-800 text-neutral-400 font-medium border border-neutral-700">
-                Viewer Mode (Read-Only)
-              </span>
-            )}
             {isAdmin && (
               <button
                 className="btn-secondary btn-sm"
@@ -349,12 +398,10 @@ export default function ContactsPage() {
                 Import
               </button>
             )}
-            {isAdmin && (
-              <button className="btn-primary btn-sm" onClick={() => setCreateModalOpen(true)}>
-                <Plus size={14} />
-                Add Contact
-              </button>
-            )}
+            <button className="btn-primary btn-sm" onClick={() => setCreateModalOpen(true)}>
+              <Plus size={14} />
+              Add Contact
+            </button>
             <div className="relative">
               <button
                 className="btn-secondary btn-sm flex items-center gap-1.5"
@@ -462,6 +509,42 @@ export default function ContactsPage() {
             <option value="">All registrations</option>
             {Object.entries(REGISTRATION_STATUS_LABELS).map(([val, label]) => (
               <option key={val} value={val}>{label}</option>
+            ))}
+          </select>
+
+          {/* College filter */}
+          <select
+            value={filters.college_id ? String(filters.college_id) : (filters.organization || '')}
+            onChange={(e) => {
+              const val = e.target.value
+              if (!val) {
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev)
+                  next.delete('college_id')
+                  next.delete('organization')
+                  next.set('page', '1')
+                  return next
+                })
+              } else if (!isNaN(Number(val))) {
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev)
+                  next.set('college_id', val)
+                  next.delete('organization')
+                  next.set('page', '1')
+                  return next
+                })
+              } else {
+                setFilter('organization', val)
+              }
+            }}
+            className="select h-8 text-sm flex-1 sm:w-44 sm:flex-none"
+            aria-label="Filter by College"
+          >
+            <option value="">All Colleges</option>
+            {colleges.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} {c.is_registered ? '★' : ''}
+              </option>
             ))}
           </select>
 
@@ -722,16 +805,18 @@ export default function ContactsPage() {
             const st = (fd.get('contact_status') as string) || 'not_contacted'
             const fuDateRaw = fd.get('followup_date') as string
             const followup_date = fuDateRaw ? new Date(fuDateRaw).toISOString() : (st === 'follow_up_required' ? new Date().toISOString() : null)
+            const assignedId = fd.get('assigned_to_id') ? Number(fd.get('assigned_to_id')) : (isAdmin ? null : user?.id)
             createContactMutation.mutate({
               name: fd.get('name') as string,
-              organization: (fd.get('organization') as string) || null,
+              organization: selectedOrgName || (fd.get('organization') as string) || null,
+              college_id: selectedCollegeId || null,
               designation: (fd.get('designation') as string) || null,
               phone: (fd.get('phone') as string) || null,
               whatsapp: (fd.get('whatsapp') as string) || null,
               email: (fd.get('email') as string) || null,
-              city: (fd.get('city') as string) || null,
+              city: cityVal || (fd.get('city') as string) || null,
               notes: (fd.get('notes') as string) || null,
-              assigned_to_id: fd.get('assigned_to_id') ? Number(fd.get('assigned_to_id')) : null,
+              assigned_to_id: assignedId,
               contact_status: st,
               followup_date,
               preferred_time: (fd.get('preferred_time') as string) || null,
@@ -757,26 +842,104 @@ export default function ContactsPage() {
           </div>
           <p className="text-neutral-500 text-xs italic -mt-2">Note: At least one of phone or email is required.</p>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-neutral-300 block mb-1 font-medium">Organization / College</label>
-              <input type="text" name="organization" className="input-text w-full" />
+          {/* College Dropdown with manual fallback */}
+          <div className="space-y-1.5 p-3 rounded-lg border border-neutral-800 bg-neutral-900/40">
+            <div className="flex items-center justify-between">
+              <label className="text-neutral-300 font-medium flex items-center gap-1.5">
+                <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+                Select College / Institution
+              </label>
+              <Link
+                to="/colleges"
+                className="text-2xs text-indigo-400 hover:text-indigo-300 underline font-medium"
+              >
+                + Add New College
+              </Link>
             </div>
-            <div>
-              <label className="text-neutral-300 block mb-1 font-medium">Designation</label>
-              <input type="text" name="designation" className="input-text w-full" />
-            </div>
+            <select
+              className="input-select w-full"
+              value={selectedCollegeId || ''}
+              onChange={(e) => {
+                const id = e.target.value ? Number(e.target.value) : null
+                setSelectedCollegeId(id)
+                const found = colleges.find((c) => c.id === id)
+                if (found) {
+                  setSelectedOrgName(found.name)
+                  if (found.city) setCityVal(found.city)
+                } else {
+                  setSelectedOrgName('')
+                }
+              }}
+            >
+              <option value="">-- Choose from Colleges list --</option>
+              {colleges.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} {c.city ? `(${c.city})` : ''} {c.is_registered ? '★ Registered' : ''}
+                </option>
+              ))}
+            </select>
+
+            <input
+              type="text"
+              name="organization"
+              value={selectedOrgName}
+              onChange={(e) => setSelectedOrgName(e.target.value)}
+              placeholder="Or enter custom College / Organization name"
+              className="input-text w-full"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-neutral-300 block mb-1 font-medium">WhatsApp</label>
-              <input type="text" name="whatsapp" className="input-text w-full font-mono" />
+              <label className="text-neutral-300 block mb-1 font-medium">Designation / Role</label>
+              <input type="text" name="designation" placeholder="e.g. Student, Professor, TPO" className="input-text w-full" />
             </div>
             <div>
               <label className="text-neutral-300 block mb-1 font-medium">City</label>
-              <input type="text" name="city" className="input-text w-full" />
+              <input
+                type="text"
+                name="city"
+                value={cityVal}
+                onChange={(e) => setCityVal(e.target.value)}
+                placeholder="e.g. Faridabad, Delhi"
+                className="input-text w-full"
+              />
             </div>
+          </div>
+
+          <div>
+            <label className="text-neutral-300 block mb-1 font-medium">WhatsApp</label>
+            <input type="text" name="whatsapp" className="input-text w-full font-mono" placeholder="+1234567890" />
+          </div>
+
+          {/* Assigned To Field */}
+          <div>
+            <label className="text-neutral-300 block mb-1 font-medium">Assigned To</label>
+            {isAdmin ? (
+              <select
+                name="assigned_to_id"
+                className="input-select w-full"
+                defaultValue={user?.id}
+              >
+                <option value="">Unassigned</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role}) {u.id === user?.id ? '(You)' : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="p-2.5 rounded border border-neutral-800 bg-neutral-900/60 flex items-center justify-between text-xs text-neutral-300">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  Assigned to: <strong className="text-neutral-100">{user?.name}</strong>
+                </span>
+                <span className="text-2xs font-medium px-2 py-0.5 rounded bg-neutral-800 text-neutral-400">
+                  Your Lead
+                </span>
+                <input type="hidden" name="assigned_to_id" value={user?.id || ''} />
+              </div>
+            )}
           </div>
 
           <div>
@@ -841,6 +1004,9 @@ export default function ContactsPage() {
               onClick={() => {
                 setCreateModalOpen(false)
                 setCreateStatus('not_contacted')
+                setSelectedCollegeId(null)
+                setSelectedOrgName('')
+                setCityVal('')
               }}
               className="btn-secondary"
             >

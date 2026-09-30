@@ -104,6 +104,7 @@ async def list_contacts(
     registration_status: Optional[str] = Query(None),
     feedback_status: Optional[str] = Query(None),
     assigned_to_id: Optional[int] = Query(None),
+    college_id: Optional[int] = Query(None),
     organization: Optional[str] = Query(None),
     import_batch_id: Optional[int] = Query(None),
     overdue_only: bool = Query(False),
@@ -129,6 +130,8 @@ async def list_contacts(
         ))
     if contact_status:
         query = query.filter(Contact.contact_status == contact_status)
+    if college_id:
+        query = query.filter(Contact.college_id == college_id)
     if organization:
         query = query.filter(Contact.organization.ilike(f"%{organization}%"))
     if assigned_to_id:
@@ -166,6 +169,7 @@ async def list_contacts(
             phone=c.phone,
             email=c.email,
             contact_status=c.contact_status.value,
+            college_id=c.college_id,
             assigned_to_id=c.assigned_to_id,
             assigned_to_name=c.assigned_to.name if c.assigned_to else None,
             registration_status=derived["registration_status"],
@@ -193,9 +197,6 @@ async def create_contact(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required to create contacts")
-
     # Duplicate check (phone → email)
     if body.phone:
         existing = db.query(Contact).filter(
@@ -214,6 +215,19 @@ async def create_contact(
     followup_date = data.pop("followup_date", None)
     preferred_time = data.pop("preferred_time", None)
     followup_reason = data.pop("followup_reason", None)
+
+    # Role-based assignment: Admin can choose assigned_to_id or defaults to current_user; Member is assigned to themselves
+    if current_user.role != "admin":
+        data["assigned_to_id"] = current_user.id
+    elif not data.get("assigned_to_id"):
+        data["assigned_to_id"] = current_user.id
+
+    # If college_id provided, ensure organization name is populated if empty
+    if data.get("college_id"):
+        from app.models import College
+        col = db.query(College).filter(College.id == data["college_id"]).first()
+        if col and not data.get("organization"):
+            data["organization"] = col.name
 
     contact = Contact(**data)
     db.add(contact)
@@ -362,9 +376,6 @@ async def update_contact(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required to edit contacts")
-
     q = db.query(Contact).filter(Contact.id == contact_id, Contact.is_archived == False)
     q = _apply_row_security(q, current_user, db)
     contact = q.first()
@@ -372,6 +383,16 @@ async def update_contact(
         raise HTTPException(status_code=404, detail="Contact not found")
 
     update_data = body.model_dump(exclude_unset=True)
+    # Non-admin members cannot change contact assignment
+    if current_user.role != "admin" and "assigned_to_id" in update_data:
+        update_data.pop("assigned_to_id")
+
+    # If college_id updated, ensure organization name reflects it if not explicitly overridden
+    if "college_id" in update_data and update_data["college_id"]:
+        from app.models import College
+        col = db.query(College).filter(College.id == update_data["college_id"]).first()
+        if col and not update_data.get("organization"):
+            update_data["organization"] = col.name
     audited_fields = {"contact_status", "assigned_to_id"}
 
     for field, new_val in update_data.items():
@@ -688,7 +709,8 @@ async def get_followups(
 ):
     q = db.query(Contact).filter(Contact.id == contact_id)
     q = _apply_row_security(q, current_user, db)
-    if not q.first():
+    contact = q.first()
+    if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
     fus = db.query(FollowUp).filter(FollowUp.contact_id == contact_id).order_by(FollowUp.followup_date.asc()).all()
     now = datetime.now(timezone.utc)
@@ -696,9 +718,9 @@ async def get_followups(
     for fu in fus:
         r = FollowUpResponse.model_validate(fu)
         r.is_overdue = fu.status == FollowUpStatus.scheduled and _to_utc(fu.followup_date) < now
-        r.contact_name = contact.name if 'contact' in locals() and contact else (fu.contact.name if fu.contact else None)
-        r.contact_phone = fu.contact.phone if fu.contact else None
-        r.contact_organization = fu.contact.organization if fu.contact else None
+        r.contact_name = contact.name
+        r.contact_phone = contact.phone
+        r.contact_organization = contact.organization
         result.append(r)
     return result
 
