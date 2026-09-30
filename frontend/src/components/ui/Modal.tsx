@@ -64,19 +64,23 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', footer }:
 
   return (
     <div
-      className="modal-overlay"
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm overflow-y-auto p-3 sm:p-6 flex items-center justify-center animate-fade-in"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
       role="presentation"
     >
       <div
         ref={dialogRef}
-        className={cn('modal-box w-full', sizeClass)}
+        className={cn(
+          'relative w-full bg-surface-1 rounded-xl shadow-2xl border border-border flex flex-col my-auto overflow-hidden animate-slide-up',
+          sizeClass
+        )}
+        style={{ maxHeight: '88vh' }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
       >
         {/* Header - pinned at top */}
-        <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-border bg-surface-1 rounded-t-xl sticky top-0 z-10">
+        <div className="shrink-0 flex items-center justify-between px-5 py-3.5 border-b border-border bg-surface-1 rounded-t-xl z-10">
           <h2 id="modal-title" className="text-base font-semibold text-text-primary">
             {title}
           </h2>
@@ -90,11 +94,16 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', footer }:
         </div>
 
         {/* Body - scrolls smoothly inside modal */}
-        <div className="modal-body">{children}</div>
+        <div
+          className="px-5 py-4 overflow-y-auto flex-1 min-h-0 overscroll-contain"
+          style={{ overflowY: 'auto', maxHeight: 'calc(88vh - 65px)' }}
+        >
+          {children}
+        </div>
 
         {/* Footer - pinned at bottom if provided */}
         {footer && (
-          <div className="shrink-0 flex items-center justify-end gap-2 px-5 py-3.5 border-t border-border bg-surface-1 rounded-b-xl sticky bottom-0 z-10">
+          <div className="shrink-0 flex items-center justify-end gap-2 px-5 py-3.5 border-t border-border bg-surface-1 rounded-b-xl z-10">
             {footer}
           </div>
         )}
