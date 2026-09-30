@@ -61,6 +61,7 @@ export default function ContactsPage() {
   const [selectedCollegeId, setSelectedCollegeId] = useState<number | null>(null)
   const [selectedOrgName, setSelectedOrgName] = useState<string>('')
   const [cityVal, setCityVal] = useState<string>('')
+  const [isCustomOrg, setIsCustomOrg] = useState(false)
 
   // Fetch all colleges for dropdown
   const { data: colleges = [] } = useQuery<College[]>({
@@ -108,6 +109,7 @@ export default function ContactsPage() {
       setSelectedCollegeId(null)
       setSelectedOrgName('')
       setCityVal('')
+      setIsCustomOrg(false)
     },
     onError: (err: any) => {
       toast.show(err.response?.data?.detail || 'Failed to create contact', 'error')
@@ -802,18 +804,29 @@ export default function ContactsPage() {
           onSubmit={(e) => {
             e.preventDefault()
             const fd = new FormData(e.currentTarget)
+            const phone = ((fd.get('phone') as string) || '').trim()
+            const email = ((fd.get('email') as string) || '').trim()
+            if (!phone && !email) {
+              toast.show('Please provide at least a Phone number or an Email', 'error')
+              return
+            }
             const st = (fd.get('contact_status') as string) || 'not_contacted'
             const fuDateRaw = fd.get('followup_date') as string
             const followup_date = fuDateRaw ? new Date(fuDateRaw).toISOString() : (st === 'follow_up_required' ? new Date().toISOString() : null)
             const assignedId = fd.get('assigned_to_id') ? Number(fd.get('assigned_to_id')) : (isAdmin ? null : user?.id)
+            
+            const orgValue = isCustomOrg 
+              ? ((fd.get('organization') as string) || '').trim() || null
+              : selectedOrgName || null
+
             createContactMutation.mutate({
               name: fd.get('name') as string,
-              organization: selectedOrgName || (fd.get('organization') as string) || null,
-              college_id: selectedCollegeId || null,
+              organization: orgValue,
+              college_id: !isCustomOrg ? (selectedCollegeId || null) : null,
               designation: (fd.get('designation') as string) || null,
-              phone: (fd.get('phone') as string) || null,
+              phone: phone || null,
               whatsapp: (fd.get('whatsapp') as string) || null,
-              email: (fd.get('email') as string) || null,
+              email: email || null,
               city: cityVal || (fd.get('city') as string) || null,
               notes: (fd.get('notes') as string) || null,
               assigned_to_id: assignedId,
@@ -823,77 +836,150 @@ export default function ContactsPage() {
               followup_reason: (fd.get('followup_reason') as string) || null,
             })
           }}
-          className="space-y-4 text-xs"
+          className="space-y-3.5 text-xs"
         >
+          {/* Full Name */}
           <div>
             <label className="text-neutral-300 block mb-1 font-medium">Full Name <span className="text-rose-500">*</span></label>
-            <input type="text" name="name" required className="input-text w-full" placeholder="John Doe" />
+            <input type="text" name="name" required className="input-text w-full" placeholder="e.g. Rahul Sharma" />
           </div>
 
+          {/* Phone & WhatsApp */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-neutral-300 block mb-1 font-medium">Phone</label>
-              <input type="text" name="phone" className="input-text w-full font-mono" placeholder="+1234567890" />
+              <label className="text-neutral-300 block mb-1 font-medium">Phone Number</label>
+              <input type="text" name="phone" className="input-text w-full font-mono" placeholder="+91 98765 43210" />
             </div>
             <div>
-              <label className="text-neutral-300 block mb-1 font-medium">Email</label>
-              <input type="email" name="email" className="input-text w-full font-mono" placeholder="john@example.com" />
+              <label className="text-neutral-300 block mb-1 font-medium">WhatsApp Number</label>
+              <input type="text" name="whatsapp" className="input-text w-full font-mono" placeholder="+91 98765 43210" />
             </div>
           </div>
-          <p className="text-neutral-500 text-xs italic -mt-2">Note: At least one of phone or email is required.</p>
 
-          {/* College Dropdown with manual fallback */}
-          <div className="space-y-1.5 p-3 rounded-lg border border-neutral-800 bg-neutral-900/40">
-            <div className="flex items-center justify-between">
-              <label className="text-neutral-300 font-medium flex items-center gap-1.5">
-                <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
-                Select College / Institution
-              </label>
-              <Link
-                to="/colleges"
-                className="text-2xs text-indigo-400 hover:text-indigo-300 underline font-medium"
-              >
-                + Add New College
-              </Link>
-            </div>
-            <select
-              className="input-select w-full"
-              value={selectedCollegeId || ''}
-              onChange={(e) => {
-                const id = e.target.value ? Number(e.target.value) : null
-                setSelectedCollegeId(id)
-                const found = colleges.find((c) => c.id === id)
-                if (found) {
-                  setSelectedOrgName(found.name)
-                  if (found.city) setCityVal(found.city)
-                } else {
-                  setSelectedOrgName('')
-                }
-              }}
-            >
-              <option value="">-- Choose from Colleges list --</option>
-              {colleges.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} {c.city ? `(${c.city})` : ''} {c.is_registered ? '★ Registered' : ''}
-                </option>
-              ))}
-            </select>
-
-            <input
-              type="text"
-              name="organization"
-              value={selectedOrgName}
-              onChange={(e) => setSelectedOrgName(e.target.value)}
-              placeholder="Or enter custom College / Organization name"
-              className="input-text w-full"
-            />
-          </div>
-
+          {/* Email & Designation */}
           <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-neutral-300 block mb-1 font-medium">Email Address</label>
+              <input type="email" name="email" className="input-text w-full font-mono" placeholder="rahul@example.com" />
+            </div>
             <div>
               <label className="text-neutral-300 block mb-1 font-medium">Designation / Role</label>
               <input type="text" name="designation" placeholder="e.g. Student, Professor, TPO" className="input-text w-full" />
             </div>
+          </div>
+          <p className="text-neutral-500 text-2xs italic -mt-2">Note: At least one of phone or email is required.</p>
+
+          {/* College / Institution Selector */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-neutral-300 font-medium flex items-center gap-1.5">
+                <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+                <span>College / Institution</span>
+              </label>
+              <div className="flex items-center gap-2 text-2xs">
+                {isCustomOrg ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomOrg(false)
+                      setSelectedOrgName('')
+                    }}
+                    className="text-indigo-400 hover:text-indigo-300 underline font-medium"
+                  >
+                    ← Select from Colleges list
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomOrg(true)
+                      setSelectedCollegeId(null)
+                      setSelectedOrgName('')
+                    }}
+                    className="text-neutral-400 hover:text-neutral-200 underline font-medium"
+                  >
+                    + Enter custom name
+                  </button>
+                )}
+                <span className="text-neutral-700">|</span>
+                <Link
+                  to="/colleges"
+                  target="_blank"
+                  className="text-indigo-400 hover:text-indigo-300 font-medium"
+                >
+                  + Add New College
+                </Link>
+              </div>
+            </div>
+
+            {isCustomOrg ? (
+              <input
+                type="text"
+                name="organization"
+                value={selectedOrgName}
+                onChange={(e) => setSelectedOrgName(e.target.value)}
+                placeholder="Enter custom College or Organization name..."
+                className="input-text w-full"
+                autoFocus
+              />
+            ) : (
+              <div className="space-y-1.5">
+                <select
+                  className="input-select w-full"
+                  value={selectedCollegeId || ''}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (val === '__custom__') {
+                      setIsCustomOrg(true)
+                      setSelectedCollegeId(null)
+                      setSelectedOrgName('')
+                      return
+                    }
+                    const id = val ? Number(val) : null
+                    setSelectedCollegeId(id)
+                    const found = colleges.find((c) => c.id === id)
+                    if (found) {
+                      setSelectedOrgName(found.name)
+                      if (found.city) setCityVal(found.city)
+                    } else {
+                      setSelectedOrgName('')
+                    }
+                  }}
+                >
+                  <option value="">-- Choose from Colleges list --</option>
+                  {colleges.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.city ? `(${c.city})` : ''} {c.is_registered ? '★ Registered' : ''}
+                    </option>
+                  ))}
+                  <option value="__custom__">+ Enter custom College / Organization name...</option>
+                </select>
+
+                {selectedCollegeId && (
+                  <div className="flex items-center justify-between text-2xs px-2.5 py-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      Linked College: <strong className="text-neutral-100">{selectedOrgName}</strong>
+                      {cityVal && <span className="text-neutral-400">({cityVal})</span>}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCollegeId(null)
+                        setSelectedOrgName('')
+                      }}
+                      className="text-neutral-400 hover:text-neutral-200 underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* City & Assigned To */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-neutral-300 block mb-1 font-medium">City</label>
               <input
@@ -905,43 +991,37 @@ export default function ContactsPage() {
                 className="input-text w-full"
               />
             </div>
+            <div>
+              <label className="text-neutral-300 block mb-1 font-medium">Assigned To</label>
+              {isAdmin ? (
+                <select
+                  name="assigned_to_id"
+                  className="input-select w-full"
+                  defaultValue={user?.id}
+                >
+                  <option value="">Unassigned</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role}) {u.id === user?.id ? '(You)' : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="p-2 rounded border border-neutral-800 bg-neutral-900/60 flex items-center justify-between text-xs text-neutral-300 h-[34px]">
+                  <span className="flex items-center gap-1.5 truncate">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="truncate">{user?.name}</span>
+                  </span>
+                  <span className="text-2xs font-medium px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400 shrink-0">
+                    Your Lead
+                  </span>
+                  <input type="hidden" name="assigned_to_id" value={user?.id || ''} />
+                </div>
+              )}
+            </div>
           </div>
 
-          <div>
-            <label className="text-neutral-300 block mb-1 font-medium">WhatsApp</label>
-            <input type="text" name="whatsapp" className="input-text w-full font-mono" placeholder="+1234567890" />
-          </div>
-
-          {/* Assigned To Field */}
-          <div>
-            <label className="text-neutral-300 block mb-1 font-medium">Assigned To</label>
-            {isAdmin ? (
-              <select
-                name="assigned_to_id"
-                className="input-select w-full"
-                defaultValue={user?.id}
-              >
-                <option value="">Unassigned</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.role}) {u.id === user?.id ? '(You)' : ''}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="p-2.5 rounded border border-neutral-800 bg-neutral-900/60 flex items-center justify-between text-xs text-neutral-300">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  Assigned to: <strong className="text-neutral-100">{user?.name}</strong>
-                </span>
-                <span className="text-2xs font-medium px-2 py-0.5 rounded bg-neutral-800 text-neutral-400">
-                  Your Lead
-                </span>
-                <input type="hidden" name="assigned_to_id" value={user?.id || ''} />
-              </div>
-            )}
-          </div>
-
+          {/* Initial Status */}
           <div>
             <label className="text-neutral-300 block mb-1 font-medium">Initial Status</label>
             <select
@@ -995,7 +1075,7 @@ export default function ContactsPage() {
 
           <div>
             <label className="text-neutral-300 block mb-1 font-medium">General Notes</label>
-            <textarea name="notes" rows={2} className="input-text w-full" />
+            <textarea name="notes" rows={2} className="input-text w-full" placeholder="Any specific requirements or notes about this contact..." />
           </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t border-neutral-800">
@@ -1007,6 +1087,7 @@ export default function ContactsPage() {
                 setSelectedCollegeId(null)
                 setSelectedOrgName('')
                 setCityVal('')
+                setIsCustomOrg(false)
               }}
               className="btn-secondary"
             >
