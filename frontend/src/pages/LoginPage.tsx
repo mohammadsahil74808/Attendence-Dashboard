@@ -44,8 +44,8 @@ export default function LoginPage() {
       setValue('email', adminEmail)
       setValue('password', adminPassword)
     } else {
-      setValue('email', 'member@fms.internal')
-      setValue('password', 'MemberPassword123!')
+      setValue('email', '')
+      setValue('password', '')
     }
   }, [roleTab, setValue, adminEmail, adminPassword])
 
@@ -190,8 +190,8 @@ export default function LoginPage() {
             </div>
 
             {/* Quick Demo Pre-fills */}
-            <div className="flex items-center justify-between pt-1">
-              {roleTab === 'admin' ? (
+            {roleTab === 'admin' && (
+              <div className="flex items-center justify-between pt-1">
                 <button
                   type="button"
                   onClick={() => {
@@ -203,20 +203,8 @@ export default function LoginPage() {
                   <CheckCircle2 size={12} />
                   Reset to Sahil Admin
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue('email', 'member@fms.internal')
-                    setValue('password', 'MemberPassword123!')
-                  }}
-                  className="text-[11px] text-text-muted hover:text-emerald-400 transition-colors flex items-center gap-1"
-                >
-                  <CheckCircle2 size={12} />
-                  Fill Demo Member Account
-                </button>
-              )}
-            </div>
+              </div>
+            )}
 
             <button
               type="submit"

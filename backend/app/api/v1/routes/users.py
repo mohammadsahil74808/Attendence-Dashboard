@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
@@ -12,10 +12,14 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("/", response_model=List[UserResponse])
 async def list_users(
+    include_inactive: bool = Query(False),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return db.query(User).all()
+    query = db.query(User)
+    if not include_inactive:
+        query = query.filter(User.is_active == True)
+    return query.order_by(User.name.asc()).all()
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -31,6 +35,7 @@ async def create_user(
         email=body.email,
         password_hash=get_password_hash(body.password),
         role=body.role,
+        is_active=True,
     )
     db.add(user)
     db.commit()
@@ -71,17 +76,28 @@ async def update_user(
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def deactivate_user(
+async def delete_user(
     user_id: int,
+    permanent: bool = Query(False),
     db: Session = Depends(get_db),
     current_user=Depends(require_admin),
 ):
     if user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
+        raise HTTPException(status_code=400, detail="Cannot deactivate or delete yourself")
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    user.is_active = False
-    log_audit(db, entity_type="user", entity_id=user_id,
-              changed_by_id=current_user.id, action="deactivated")
+    
+    if permanent:
+        # Reassign contacts to null
+        from app.models import Contact
+        db.query(Contact).filter(Contact.assigned_to_id == user_id).update({"assigned_to_id": None})
+        db.delete(user)
+        log_audit(db, entity_type="user", entity_id=user_id,
+                  changed_by_id=current_user.id, action="deleted",
+                  new_value=f"User {user.email} permanently removed")
+    else:
+        user.is_active = False
+        log_audit(db, entity_type="user", entity_id=user_id,
+                  changed_by_id=current_user.id, action="deactivated")
     db.commit()

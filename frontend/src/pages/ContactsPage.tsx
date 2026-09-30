@@ -23,6 +23,7 @@ import api from '../lib/api'
 import { timeAgo } from '../lib/utils'
 import type { ContactListItem, ContactFilters, ContactStatus, RegistrationStatus, College, User } from '../types'
 import { CONTACT_STATUS_LABELS, REGISTRATION_STATUS_LABELS } from '../types'
+import { SearchableMemberSelect } from '../components/ui/SearchableMemberSelect'
 
 const PAGE_SIZE = 50
 
@@ -62,6 +63,7 @@ export default function ContactsPage() {
   const [selectedOrgName, setSelectedOrgName] = useState<string>('')
   const [cityVal, setCityVal] = useState<string>('')
   const [isCustomOrg, setIsCustomOrg] = useState(false)
+  const [createAssignedToId, setCreateAssignedToId] = useState<number | null>(user?.id ?? null)
 
   // Fetch all colleges for dropdown
   const { data: colleges = [] } = useQuery<College[]>({
@@ -110,6 +112,7 @@ export default function ContactsPage() {
       setSelectedOrgName('')
       setCityVal('')
       setIsCustomOrg(false)
+      setCreateAssignedToId(user?.id ?? null)
     },
     onError: (err: any) => {
       toast.show(err.response?.data?.detail || 'Failed to create contact', 'error')
@@ -813,7 +816,9 @@ export default function ContactsPage() {
             const st = (fd.get('contact_status') as string) || 'not_contacted'
             const fuDateRaw = fd.get('followup_date') as string
             const followup_date = fuDateRaw ? new Date(fuDateRaw).toISOString() : (st === 'follow_up_required' ? new Date().toISOString() : null)
-            const assignedId = fd.get('assigned_to_id') ? Number(fd.get('assigned_to_id')) : (isAdmin ? null : user?.id)
+            const assignedId = isAdmin
+              ? (createAssignedToId ?? (fd.get('assigned_to_id') ? Number(fd.get('assigned_to_id')) : null))
+              : user?.id
             
             const orgValue = isCustomOrg 
               ? ((fd.get('organization') as string) || '').trim() || null
@@ -827,7 +832,7 @@ export default function ContactsPage() {
               phone: phone || null,
               whatsapp: (fd.get('whatsapp') as string) || null,
               email: email || null,
-              city: cityVal || (fd.get('city') as string) || null,
+              city: cityVal || null,
               notes: (fd.get('notes') as string) || null,
               assigned_to_id: assignedId,
               contact_status: st,
@@ -978,34 +983,22 @@ export default function ContactsPage() {
             )}
           </div>
 
-          {/* City & Assigned To */}
+          {/* Auto-populated City from selected College */}
+          <input type="hidden" name="city" value={cityVal} />
+
+          {/* Assigned To Member & Initial Status */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-neutral-300 block mb-1 font-medium">City</label>
-              <input
-                type="text"
-                name="city"
-                value={cityVal}
-                onChange={(e) => setCityVal(e.target.value)}
-                placeholder="e.g. Faridabad, Delhi"
-                className="input-text w-full"
-              />
-            </div>
-            <div>
-              <label className="text-neutral-300 block mb-1 font-medium">Assigned To</label>
+              <label className="text-neutral-300 block mb-1 font-medium">Assigned To Member</label>
               {isAdmin ? (
-                <select
+                <SearchableMemberSelect
+                  users={users}
+                  value={createAssignedToId}
+                  onChange={(id) => setCreateAssignedToId(id)}
                   name="assigned_to_id"
-                  className="input-select w-full"
-                  defaultValue={user?.id}
-                >
-                  <option value="">Unassigned</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.role}) {u.id === user?.id ? '(You)' : ''}
-                    </option>
-                  ))}
-                </select>
+                  currentUserId={user?.id}
+                  placeholder="Search member to assign..."
+                />
               ) : (
                 <div className="p-2 rounded border border-neutral-800 bg-neutral-900/60 flex items-center justify-between text-xs text-neutral-300 h-[34px]">
                   <span className="flex items-center gap-1.5 truncate">
@@ -1019,21 +1012,20 @@ export default function ContactsPage() {
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Initial Status */}
-          <div>
-            <label className="text-neutral-300 block mb-1 font-medium">Initial Status</label>
-            <select
-              name="contact_status"
-              className="input-select w-full"
-              value={createStatus}
-              onChange={(e) => setCreateStatus(e.target.value)}
-            >
-              {Object.entries(CONTACT_STATUS_LABELS).map(([k, label]) => (
-                <option key={k} value={k}>{label}</option>
-              ))}
-            </select>
+            <div>
+              <label className="text-neutral-300 block mb-1 font-medium">Initial Status</label>
+              <select
+                name="contact_status"
+                className="input-select w-full"
+                value={createStatus}
+                onChange={(e) => setCreateStatus(e.target.value)}
+              >
+                {Object.entries(CONTACT_STATUS_LABELS).map(([k, label]) => (
+                  <option key={k} value={k}>{label}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {createStatus === 'follow_up_required' && (
@@ -1088,6 +1080,7 @@ export default function ContactsPage() {
                 setSelectedOrgName('')
                 setCityVal('')
                 setIsCustomOrg(false)
+                setCreateAssignedToId(user?.id ?? null)
               }}
               className="btn-secondary"
             >

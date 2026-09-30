@@ -21,12 +21,13 @@ export default function UsersPage() {
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [editUser, setEditUser] = useState<User | null>(null)
   const [deactivateId, setDeactivateId] = useState<number | null>(null)
+  const [permanentDeleteUser, setPermanentDeleteUser] = useState<User | null>(null)
 
-  // Fetch users
+  // Fetch users (include inactive for admin management)
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ['users'],
     queryFn: async () => {
-      const res = await api.get('/users/')
+      const res = await api.get('/users/?include_inactive=true')
       return res.data
     },
   })
@@ -36,6 +37,7 @@ export default function UsersPage() {
     mutationFn: (data: any) => api.post('/users/', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['users-list'] })
       toast.show('Team member created successfully', 'success')
       setAddModalOpen(false)
     },
@@ -50,6 +52,7 @@ export default function UsersPage() {
     mutationFn: ({ id, data }: { id: number; data: any }) => api.patch(`/users/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['users-list'] })
       toast.show('User updated', 'success')
       setEditUser(null)
     },
@@ -64,11 +67,27 @@ export default function UsersPage() {
     mutationFn: (id: number) => api.delete(`/users/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['users-list'] })
       toast.show('User deactivated', 'success')
       setDeactivateId(null)
     },
     onError: (err: any) => {
       const msg = err.response?.data?.detail || 'Failed to deactivate user'
+      toast.show(msg, 'error')
+    },
+  })
+
+  // Permanent remove user mutation
+  const permanentDeleteMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/users/${id}?permanent=true`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['users-list'] })
+      toast.show('User permanently removed from system', 'success')
+      setPermanentDeleteUser(null)
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.detail || 'Failed to remove user'
       toast.show(msg, 'error')
     },
   })
@@ -161,21 +180,43 @@ export default function UsersPage() {
                       {formatDate(u.created_at)}
                     </td>
 
-                    <td className="px-5 py-3.5 text-right space-x-2">
+                    <td className="px-5 py-3.5 text-right space-x-1.5 whitespace-nowrap">
                       <button
                         onClick={() => setEditUser(u)}
                         className="btn-secondary text-2xs py-1 px-2.5 inline-flex items-center gap-1"
+                        title="Edit User"
                       >
                         <Edit className="w-3 h-3" /> Edit
                       </button>
 
-                      {u.id !== currentUser?.id && u.is_active && (
-                        <button
-                          onClick={() => setDeactivateId(u.id)}
-                          className="btn-danger text-2xs py-1 px-2.5 inline-flex items-center gap-1"
-                        >
-                          <Trash2 className="w-3 h-3" /> Deactivate
-                        </button>
+                      {u.id !== currentUser?.id && (
+                        <>
+                          {u.is_active ? (
+                            <button
+                              onClick={() => setDeactivateId(u.id)}
+                              className="btn-secondary text-amber-400 hover:text-amber-300 text-2xs py-1 px-2.5 inline-flex items-center gap-1"
+                              title="Deactivate Account"
+                            >
+                              <XCircle className="w-3 h-3" /> Deactivate
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => updateMutation.mutate({ id: u.id, data: { is_active: true } })}
+                              className="btn-secondary text-emerald-400 hover:text-emerald-300 text-2xs py-1 px-2.5 inline-flex items-center gap-1"
+                              title="Reactivate Account"
+                            >
+                              <CheckCircle className="w-3 h-3" /> Reactivate
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => setPermanentDeleteUser(u)}
+                            className="btn-danger text-2xs py-1 px-2 inline-flex items-center gap-1"
+                            title="Remove Member Permanently"
+                          >
+                            <Trash2 className="w-3 h-3" /> Delete
+                          </button>
+                        </>
                       )}
                     </td>
                   </tr>
@@ -308,6 +349,19 @@ export default function UsersPage() {
           title="Deactivate Team Member"
           message="Are you sure you want to deactivate this account? The user will no longer be able to log in or access assigned contacts."
           confirmLabel="Deactivate Account"
+          isDanger
+        />
+
+        {/* Permanent Remove Confirm */}
+        <ConfirmDialog
+          isOpen={!!permanentDeleteUser}
+          onClose={() => setPermanentDeleteUser(null)}
+          onConfirm={() => {
+            if (permanentDeleteUser) permanentDeleteMutation.mutate(permanentDeleteUser.id)
+          }}
+          title="Remove Member Permanently?"
+          message={`Are you sure you want to completely remove "${permanentDeleteUser?.name}" (${permanentDeleteUser?.email}) from the database? Any leads assigned to them will become Unassigned.`}
+          confirmLabel="Delete Forever"
           isDanger
         />
       </div>

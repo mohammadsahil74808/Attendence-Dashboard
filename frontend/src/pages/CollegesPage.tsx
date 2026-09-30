@@ -164,7 +164,7 @@ export default function CollegesPage() {
             <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search colleges by name, city, university, or contact person..."
+              placeholder="Search colleges by name, city, state, or phone..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value)
@@ -424,16 +424,16 @@ function CollegeForm({ initialData, onSubmit, isPending, onCancel }: CollegeForm
     const rawStatus = isRegistered ? 'registered' : ((fd.get('status') as string) || 'active')
     onSubmit({
       name: (fd.get('name') as string).trim(),
-      code: (fd.get('code') as string)?.trim() || null,
-      university: (fd.get('university') as string)?.trim() || null,
+      code: null,
+      university: null,
       city: (fd.get('city') as string)?.trim() || null,
       state: (fd.get('state') as string)?.trim() || null,
       address: (fd.get('address') as string)?.trim() || null,
-      website: (fd.get('website') as string)?.trim() || null,
+      website: null,
       email: (fd.get('email') as string)?.trim() || null,
       phone: (fd.get('phone') as string)?.trim() || null,
-      contact_person: (fd.get('contact_person') as string)?.trim() || null,
-      contact_person_designation: (fd.get('contact_person_designation') as string)?.trim() || null,
+      contact_person: null,
+      contact_person_designation: null,
       status: rawStatus as 'registered' | 'active' | 'prospective' | 'inactive',
       is_registered: isRegistered,
       notes: (fd.get('notes') as string)?.trim() || null,
@@ -454,29 +454,6 @@ function CollegeForm({ initialData, onSubmit, isPending, onCancel }: CollegeForm
           placeholder="e.g. Lingayas Vidyapeeth, Delhi Technical Campus"
           className="input-text w-full"
         />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-neutral-300 block mb-1 font-medium">Short Code / Acronym</label>
-          <input
-            type="text"
-            name="code"
-            defaultValue={initialData?.code || ''}
-            placeholder="e.g. LV-01 or DTC"
-            className="input-text w-full font-mono"
-          />
-        </div>
-        <div>
-          <label className="text-neutral-300 block mb-1 font-medium">Affiliated University / Board</label>
-          <input
-            type="text"
-            name="university"
-            defaultValue={initialData?.university || ''}
-            placeholder="e.g. IP University, AICTE"
-            className="input-text w-full"
-          />
-        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -515,29 +492,6 @@ function CollegeForm({ initialData, onSubmit, isPending, onCancel }: CollegeForm
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-neutral-300 block mb-1 font-medium">Key Contact Person / Dean / TPO</label>
-          <input
-            type="text"
-            name="contact_person"
-            defaultValue={initialData?.contact_person || ''}
-            placeholder="e.g. Dr. Rajesh Kumar"
-            className="input-text w-full"
-          />
-        </div>
-        <div>
-          <label className="text-neutral-300 block mb-1 font-medium">Designation</label>
-          <input
-            type="text"
-            name="contact_person_designation"
-            defaultValue={initialData?.contact_person_designation || ''}
-            placeholder="e.g. Head of Placements, Director"
-            className="input-text w-full"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
           <label className="text-neutral-300 block mb-1 font-medium">Contact Phone</label>
           <input
             type="text"
@@ -557,17 +511,6 @@ function CollegeForm({ initialData, onSubmit, isPending, onCancel }: CollegeForm
             className="input-text w-full font-mono"
           />
         </div>
-      </div>
-
-      <div>
-        <label className="text-neutral-300 block mb-1 font-medium">Official Website</label>
-        <input
-          type="text"
-          name="website"
-          defaultValue={initialData?.website || ''}
-          placeholder="https://www.lingayasvidyapeeth.edu.in"
-          className="input-text w-full"
-        />
       </div>
 
       {/* Registration Checkbox & Status */}

@@ -33,6 +33,7 @@ import {
   CONTACT_METHODS,
   ATTEMPT_OUTCOMES,
 } from '../types'
+import { SearchableMemberSelect } from '../components/ui/SearchableMemberSelect'
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -108,6 +109,7 @@ export default function ContactDetailPage() {
 
   const [editCollegeId, setEditCollegeId] = useState<number | null>(null)
   const [editOrgName, setEditOrgName] = useState<string>('')
+  const [editAssignedToId, setEditAssignedToId] = useState<number | null>(null)
   const { data: attempts = [] } = useQuery<ContactAttempt[]>({
     queryKey: ['attempts', contactId],
     queryFn: async () => {
@@ -416,7 +418,12 @@ export default function ContactDetailPage() {
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-neutral-300">Contact Details</h3>
                 {isAdmin && (
                   <button
-                    onClick={() => setEditInfoModalOpen(true)}
+                    onClick={() => {
+                      setEditCollegeId(contact.college_id || null)
+                      setEditOrgName(contact.organization || '')
+                      setEditAssignedToId(contact.assigned_to_id || null)
+                      setEditInfoModalOpen(true)
+                    }}
                     className="text-xs text-indigo-400 hover:text-indigo-300 inline-flex items-center gap-1"
                   >
                     <Edit className="w-3.5 h-3.5" /> Edit
@@ -1279,8 +1286,8 @@ export default function ContactDetailPage() {
                 city: (fd.get('city') as string) || null,
                 notes: (fd.get('notes') as string) || null,
               }
-              if (isAdmin && fd.get('assigned_to_id') !== null) {
-                payload.assigned_to_id = fd.get('assigned_to_id') ? Number(fd.get('assigned_to_id')) : null
+              if (isAdmin) {
+                payload.assigned_to_id = editAssignedToId
               }
               updateContactMutation.mutate(payload)
               setEditInfoModalOpen(false)
@@ -1367,18 +1374,13 @@ export default function ContactDetailPage() {
             <div>
               <label className="text-neutral-300 block mb-1 font-medium">Assigned To</label>
               {isAdmin ? (
-                <select
+                <SearchableMemberSelect
+                  users={users}
+                  value={editAssignedToId}
+                  onChange={(id) => setEditAssignedToId(id)}
                   name="assigned_to_id"
-                  className="input-select w-full"
-                  defaultValue={contact.assigned_to_id || ''}
-                >
-                  <option value="">Unassigned</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.role}) {u.id === contact.assigned_to_id ? '(Assigned)' : ''}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Search member to assign..."
+                />
               ) : (
                 <div className="p-2.5 rounded border border-neutral-800 bg-neutral-900/60 text-xs text-neutral-300">
                   Assigned to: <strong className="text-neutral-100">{contact.assigned_to?.name || 'Unassigned'}</strong> (Admin only can reassign)

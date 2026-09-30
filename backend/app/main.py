@@ -87,16 +87,10 @@ def ensure_default_users():
             sahil.role = UserRole.admin
             sahil.is_active = True
 
-        admin = db.query(User).filter(User.email == "admin@fms.internal").first()
-        if not admin:
-            admin = User(
-                name="System Administrator",
-                email="admin@fms.internal",
-                password_hash=get_password_hash("admin123"),
-                role=UserRole.admin,
-                is_active=True,
-            )
-            db.add(admin)
+        # Ensure dummy users are removed or deactivated so they don't appear in Assigned To
+        dummy_users = db.query(User).filter(User.email.in_(["admin@fms.internal", "member@fms.internal"])).all()
+        for du in dummy_users:
+            du.is_active = False
 
         # Seed default college if none exist
         default_college = db.query(College).first()

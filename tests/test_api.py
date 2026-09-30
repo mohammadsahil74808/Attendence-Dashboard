@@ -21,14 +21,14 @@ def test_health():
 
 def test_auth_login_admin():
     res = client.post("/api/v1/auth/login", json={
-        "email": "admin@fms.internal",
-        "password": "AdminPassword123!"
+        "email": "sahilansari74808@gmail.com",
+        "password": "admin123"
     })
     assert res.status_code == 200
     data = res.json()
     assert "access_token" in data
     assert data["user"]["role"] == "admin"
-    assert data["user"]["email"] == "admin@fms.internal"
+    assert data["user"]["email"] == "sahilansari74808@gmail.com"
 
 def test_auth_login_invalid():
     res = client.post("/api/v1/auth/login", json={
@@ -40,8 +40,8 @@ def test_auth_login_invalid():
 def test_dashboard_summary():
     # Login as admin
     login_res = client.post("/api/v1/auth/login", json={
-        "email": "admin@fms.internal",
-        "password": "AdminPassword123!"
+        "email": "sahilansari74808@gmail.com",
+        "password": "admin123"
     })
     token = login_res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
@@ -54,8 +54,8 @@ def test_dashboard_summary():
 
 def test_contacts_list_and_filter():
     login_res = client.post("/api/v1/auth/login", json={
-        "email": "admin@fms.internal",
-        "password": "AdminPassword123!"
+        "email": "sahilansari74808@gmail.com",
+        "password": "admin123"
     })
     token = login_res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
@@ -79,8 +79,8 @@ def test_status_independence_invariant():
     are fully independent. Updating registration must NOT change contact_status.
     """
     login_res = client.post("/api/v1/auth/login", json={
-        "email": "admin@fms.internal",
-        "password": "AdminPassword123!"
+        "email": "sahilansari74808@gmail.com",
+        "password": "admin123"
     })
     token = login_res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
@@ -117,8 +117,8 @@ def test_status_independence_invariant():
 
 def test_followups_list():
     login_res = client.post("/api/v1/auth/login", json={
-        "email": "admin@fms.internal",
-        "password": "AdminPassword123!"
+        "email": "sahilansari74808@gmail.com",
+        "password": "admin123"
     })
     token = login_res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
@@ -136,8 +136,8 @@ def test_colleges_crud_and_contact_link():
     import uuid
     uid = uuid.uuid4().hex[:6]
     login_res = client.post("/api/v1/auth/login", json={
-        "email": "admin@fms.internal",
-        "password": "AdminPassword123!"
+        "email": "sahilansari74808@gmail.com",
+        "password": "admin123"
     })
     token = login_res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
